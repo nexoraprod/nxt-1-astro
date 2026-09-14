@@ -13,11 +13,12 @@ function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const links = [
     { href: '#overview', label: 'Overview' },
+    { href: '#gpt6-astra', label: 'GPT-6 Astra' },
     { href: '#architecture', label: 'Arsitektur' },
-    { href: '#tokenization', label: 'Tokenisasi' },
     { href: '#pipeline', label: 'Pipeline' },
     { href: '#training', label: 'Training' },
     { href: '#rlhf', label: 'RLHF' },
+    { href: '#roadmap', label: 'Roadmap' },
     { href: '#deployment', label: 'Deploy' },
     { href: '#learning', label: 'Belajar' },
   ];
@@ -1888,6 +1889,736 @@ if __name__ == "__main__":
   );
 }
 
+// ============ GPT-6 ASTRA BLUEPRINT SECTION ============
+function GPT6AstraBlueprintSection() {
+  const [activeCode, setActiveCode] = useState<'config' | 'tokenizer' | 'model' | 'train' | 'server'>('config');
+
+  const architectureDiagram = `┌──────────────────────────────────────────────────────────┐
+│                    GPT-6 ASTRA PROTOTYPE                  │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Input Text → [Tokenizer (BPE/SentencePiece)] → Token IDs│
+│       ↓                                                  │
+│  Token Embedding [B, T, d_model]                        │
+│       + Positional Encoding (RoPE)                       │
+│       ↓                                                  │
+│  ┌─────────────────────────────┐  × N layers            │
+│  │  RMSNorm                    │                        │
+│  │  Causal Self-Attention      │  (Multi-Head + FlashAttn)│
+│  │    ├─ Q, K, V projections  │                        │
+│  │    ├─ RoPE rotation         │                        │
+│  │    └─ Softmax attention     │                        │
+│  │  + Residual Connection     │                        │
+│  │  RMSNorm                    │                        │
+│  │  SwiGLU Feed-Forward       │                        │
+│  │  + Residual Connection     │                        │
+│  └─────────────────────────────┘                        │
+│       ↓                                                  │
+│  Final RMSNorm                                           │
+│       ↓                                                  │
+│  LM Head (weight-tied) → Logits [B, T, vocab_size]     │
+│       ↓                                                  │
+│  Softmax → Next Token Prediction                         │
+└──────────────────────────────────────────────────────────┘`;
+
+  const configCode = `# config.py
+class GPTConfig:
+    """Konfigurasi untuk model GPT-6 Astra Prototype"""
+    vocab_size: int = 50257       # Ukuran kosakata
+    max_seq_len: int = 2048       # Panjang maksimum sequence
+    d_model: int = 768            # Dimensi embedding
+    n_heads: int = 12             # Jumlah attention head
+    n_layers: int = 12            # Jumlah transformer block
+    d_ff: int = 3072              # Dimensi feed-forward (4 * d_model)
+    dropout: float = 0.1
+    rms_eps: float = 1e-5`;
+
+  const tokenizerCode = `# tokenizer.py
+import re
+from collections import Counter
+
+class SimpleBPETokenizer:
+    """Byte Pair Encoding Tokenizer Sederhana"""
+    
+    def __init__(self, vocab_size=50257):
+        self.vocab_size = vocab_size
+        self.merges = {}
+        self.vocab = {}
+        self.inverse_vocab = {}
+    
+    def encode(self, text: str) -> list[int]:
+        """Mengubah teks menjadi token ID"""
+        tokens = []
+        for word in text.lower().split():
+            chars = list(word) + ['</w>']
+            while len(chars) > 1:
+                pairs = self._get_pairs(chars)
+                if not pairs:
+                    break
+                best_pair = min(pairs, key=lambda p: pairs[p])
+                if best_pair not in self.merges:
+                    break
+                new_chars = []
+                i = 0
+                while i < len(chars):
+                    if i < len(chars) - 1 and (chars[i], chars[i+1]) == best_pair:
+                        new_chars.append(self.merges[best_pair])
+                        i += 2
+                    else:
+                        new_chars.append(chars[i])
+                        i += 1
+                chars = new_chars
+            tokens.extend([self.vocab.get(c, 0) for c in chars])
+        return tokens
+    
+    def decode(self, token_ids: list[int]) -> str:
+        """Mengubah token ID menjadi teks"""
+        return ''.join([self.inverse_vocab.get(t, '') for t in token_ids])
+    
+    def train(self, corpus: str, vocab_size=50257):
+        """Melatih BPE tokenizer dari corpus"""
+        chars = sorted(set(corpus))
+        self.vocab = {ch: i for i, ch in enumerate(chars)}
+        self.inverse_vocab = {i: ch for ch, i in self.vocab.items()}
+        next_id = len(chars)
+        
+        text = corpus
+        while len(self.merges) < vocab_size - len(chars):
+            pairs = Counter()
+            words = text.split()
+            for word in words:
+                symbols = list(word)
+                for i in range(len(symbols) - 1):
+                    pair = (symbols[i], symbols[i+1])
+                    pairs[pair] += 1
+            
+            if not pairs:
+                break
+            
+            best = pairs.most_common(1)[0][0]
+            self.merges[best] = next_id
+            self.inverse_vocab[next_id] = best[0] + best[1]
+            self.vocab[best[0] + best[1]] = next_id
+            next_id += 1`;
+
+  const modelCode = `# model.py
+import torch
+import torch.nn as nn
+import math
+
+class RoPE(nn.Module):
+    """Rotary Position Embedding"""
+    def __init__(self, dim, max_seq_len=2048):
+        super().__init__()
+        inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+        position = torch.arange(max_seq_len)
+        freqs = torch.outer(position, inv_freq)
+        self.register_buffer('cos', torch.cos(freqs))
+        self.register_buffer('sin', torch.sin(freqs))
+    
+    def forward(self, x, seq_len):
+        cos = self.cos[:seq_len].unsqueeze(0).unsqueeze(-1)
+        sin = self.sin[:seq_len].unsqueeze(0).unsqueeze(-1)
+        x_complex = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
+        rotated = x_complex * torch.view_as_complex(cos + 1j * sin)
+        return torch.view_as_real(rotated).reshape(x.shape)
+
+class MultiHeadAttention(nn.Module):
+    """Multi-Head Causal Self-Attention"""
+    def __init__(self, config):
+        super().__init__()
+        self.n_heads = config.n_heads
+        self.d_model = config.d_model
+        self.head_dim = config.d_model // config.n_heads
+        
+        self.wq = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.wk = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.wv = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.wo = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.rope = RoPE(self.head_dim)
+        self.dropout = nn.Dropout(config.dropout)
+    
+    def forward(self, x, mask=None):
+        B, T, C = x.shape
+        
+        q = self.wq(x).view(B, T, self.n_heads, self.head_dim)
+        k = self.wk(x).view(B, T, self.n_heads, self.head_dim)
+        v = self.wv(x).view(B, T, self.n_heads, self.head_dim)
+        
+        q = self.rope(q, T)
+        k = self.rope(k, T)
+        
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+        
+        scale = 1.0 / math.sqrt(self.head_dim)
+        att = (q @ k.transpose(-2, -1)) * scale
+        
+        mask = torch.tril(torch.ones(T, T), diagonal=0).bool()
+        att = att.masked_fill(~mask, float('-inf'))
+        att = torch.softmax(att, dim=-1)
+        att = self.dropout(att)
+        
+        output = att @ v
+        output = output.transpose(1, 2).contiguous().view(B, T, C)
+        return self.wo(output)
+
+class FeedForward(nn.Module):
+    """SwiGLU Feed-Forward Network"""
+    def __init__(self, config):
+        super().__init__()
+        self.w1 = nn.Linear(config.d_model, config.d_ff, bias=False)
+        self.w2 = nn.Linear(config.d_ff, config.d_model, bias=False)
+        self.w3 = nn.Linear(config.d_model, config.d_ff, bias=False)
+        self.dropout = nn.Dropout(config.dropout)
+    
+    def forward(self, x):
+        return self.dropout(self.w2(nn.functional.silu(self.w1(x)) * self.w3(x)))
+
+class TransformerBlock(nn.Module):
+    """Satu blok Transformer (RMSNorm + Attention + FFN)"""
+    def __init__(self, config):
+        super().__init__()
+        self.attention = MultiHeadAttention(config)
+        self.ffn = FeedForward(config)
+        self.rms1 = nn.RMSNorm(config.d_model, eps=config.rms_eps)
+        self.rms2 = nn.RMSNorm(config.d_model, eps=config.rms_eps)
+    
+    def forward(self, x, mask=None):
+        x = x + self.attention(self.rms1(x), mask)
+        x = x + self.ffn(self.rms2(x))
+        return x
+
+class GPTModel(nn.Module):
+    """GPT-6 Astra Prototype — Transformer Decoder-Only"""
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        
+        self.token_embedding = nn.Embedding(config.vocab_size, config.d_model)
+        self.position_embedding = nn.Embedding(config.max_seq_len, config.d_model)
+        self.dropout = nn.Dropout(config.dropout)
+        
+        self.layers = nn.ModuleList([
+            TransformerBlock(config) for _ in range(config.n_layers)
+        ])
+        
+        self.final_rms = nn.RMSNorm(config.d_model, eps=config.rms_eps)
+        self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+        
+        # Weight tying
+        self.lm_head.weight = self.token_embedding.weight
+    
+    def forward(self, token_ids, targets=None):
+        B, T = token_ids.shape
+        pos = torch.arange(0, T, dtype=torch.long, device=token_ids.device).unsqueeze(0)
+        
+        x = self.token_embedding(token_ids) + self.position_embedding(pos)
+        x = self.dropout(x)
+        
+        for layer in self.layers:
+            x = layer(x)
+        
+        x = self.final_rms(x)
+        logits = self.lm_head(x)
+        
+        loss = None
+        if targets is not None:
+            loss = nn.functional.cross_entropy(
+                logits.view(-1, logits.size(-1)),
+                targets.view(-1)
+            )
+        
+        return logits, loss
+    
+    def generate(self, prompt_ids, max_new_tokens=100, temperature=1.0, top_k=50):
+        """Generate teks baru dari prompt"""
+        self.eval()
+        with torch.no_grad():
+            ids = torch.tensor([prompt_ids], device=next(self.parameters()).device)
+            for _ in range(max_new_tokens):
+                idx_cond = ids[:, -self.config.max_seq_len:]
+                logits, _ = self(idx_cond)
+                logits = logits[:, -1, :] / temperature
+                
+                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                logits[logits < v[:, [-1]]] = float('-inf')
+                
+                probs = torch.softmax(logits, dim=-1)
+                next_id = torch.multinomial(probs, num_samples=1)
+                ids = torch.cat([ids, next_id], dim=1)
+        
+        return ids[0].tolist()`;
+
+  const trainCode = `# train.py
+import torch
+import torch.optim as optim
+from model import GPTModel, GPTConfig
+from tokenizer import SimpleBPETokenizer
+
+def train_model():
+    """Loop training model GPT-6 Astra Prototype"""
+    
+    config = GPTConfig(
+        vocab_size=1000,
+        max_seq_len=512,
+        d_model=256,
+        n_heads=8,
+        n_layers=4,
+        d_ff=1024,
+        dropout=0.1,
+    )
+    
+    model = GPTModel(config)
+    print(f"Total parameter: {sum(p.numel() for p in model.parameters()):,}")
+    
+    corpus = """
+    Halo, dunia! Ini adalah model AI yang ditulis dalam bahasa Python.
+    Model AI adalah program yang belajar dari data. Pembelajaran mesin 
+    adalah cabang kecerdasan buatan. Jaringan saraf tiruan terinspirasi 
+    oleh otak manusia. Transformer adalah arsitektur yang digunakan dalam 
+    GPT, BERT, dan banyak model modern lainnya.
+    """
+    
+    tokenizer = SimpleBPETokenizer()
+    tokenizer.train(corpus, vocab_size=config.vocab_size)
+    
+    tokens = tokenizer.encode(corpus.lower())
+    if len(tokens) < config.max_seq_len:
+        tokens = tokens + [0] * (config.max_seq_len - len(tokens))
+    
+    data = torch.tensor(tokens[:config.max_seq_len]).unsqueeze(0)
+    
+    optimizer = optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.01)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=1000)
+    
+    print("🔄 Memulai training...")
+    for epoch in range(1000):
+        model.train()
+        
+        x = data[:, :-1]
+        y = data[:, 1:]
+        
+        logits, loss = model(x, targets=y)
+        
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        scheduler.step()
+        
+        if epoch % 100 == 0:
+            print(f"Epoch {epoch:4d} | Loss: {loss.item():.4f} | LR: {scheduler.get_last_lr()[0]:.6f}")
+    
+    torch.save(model.state_dict(), "gpt6_astra_prototype.pt")
+    print("✅ Model disimpan!")
+    
+    return model, tokenizer
+
+def demo_generation(model, tokenizer):
+    """Demo generasi teks"""
+    prompt = "Model AI"
+    prompt_ids = tokenizer.encode(prompt.lower())
+    
+    print(f"\\n📝 Prompt: '{prompt}'")
+    print("🔮 Hasil generasi:")
+    
+    generated_ids = model.generate(prompt_ids, max_new_tokens=50, temperature=0.8)
+    generated_text = tokenizer.decode(generated_ids)
+    print(generated_text)
+
+if __name__ == "__main__":
+    model, tokenizer = train_model()
+    demo_generation(model, tokenizer)`;
+
+  const serverCode = `# server.py
+from flask import Flask, request, jsonify
+import torch
+from model import GPTModel, GPTConfig
+from tokenizer import SimpleBPETokenizer
+
+app = Flask(__name__)
+
+config = GPTConfig(
+    vocab_size=1000,
+    max_seq_len=512,
+    d_model=256,
+    n_heads=8,
+    n_layers=4,
+    d_ff=1024,
+)
+
+model = GPTModel(config)
+model.load_state_dict(torch.load("gpt6_astra_prototype.pt"))
+model.eval()
+
+tokenizer = SimpleBPETokenizer()
+
+@app.route("/v1/chat/completions", methods=["POST"])
+def chat_completion():
+    """Endpoint chat completion seperti OpenAI API"""
+    data = request.json
+    messages = data.get("messages", [])
+    temperature = data.get("temperature", 0.7)
+    max_tokens = data.get("max_tokens", 256)
+    
+    prompt = ""
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if role == "system":
+            prompt += f"[SYSTEM] {content}\\n"
+        elif role == "user":
+            prompt += f"[USER] {content}\\n"
+        elif role == "assistant":
+            prompt += f"[ASSISTANT] {content}\\n"
+    
+    prompt_ids = tokenizer.encode(prompt.lower())
+    generated_ids = model.generate(
+        prompt_ids,
+        max_new_tokens=max_tokens,
+        temperature=temperature,
+        top_k=50
+    )
+    response_text = tokenizer.decode(generated_ids)
+    
+    return jsonify({
+        "id": "chatcmpl-gpt6-astra",
+        "object": "chat.completion",
+        "model": "gpt-6-astra-prototype",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": response_text
+            },
+            "finish_reason": "stop"
+        }],
+        "usage": {
+            "prompt_tokens": len(prompt_ids),
+            "completion_tokens": len(generated_ids),
+            "total_tokens": len(prompt_ids) + len(generated_ids)
+        }
+    })
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "active", "model": "GPT-6 Astra Prototype"})
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)`;
+
+  const codeTabs = [
+    { id: 'config', label: 'Config', icon: Layers },
+    { id: 'tokenizer', label: 'Tokenizer', icon: Code2 },
+    { id: 'model', label: 'Model', icon: Brain },
+    { id: 'train', label: 'Training', icon: Zap },
+    { id: 'server', label: 'API Server', icon: Globe },
+  ];
+
+  return (
+    <section id="gpt6-astra" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-950/10 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 mb-6">
+            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+            <span className="text-sm text-purple-300">Blueprint Lengkap</span>
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
+            GPT-6 Astra Prototype
+          </h2>
+          <p className="text-gray-400 max-w-3xl mx-auto">
+            Arsitektur modern dengan RoPE, SwiGLU, dan RMSNorm — kode kerja lengkap dari konfigurasi hingga deployment
+          </p>
+        </motion.div>
+
+        {/* Architecture Diagram */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mb-12"
+        >
+          <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <Layers className="w-5 h-5 text-purple-400" />
+            Arsitektur Transformer Decoder-Only
+          </h3>
+          <div className="p-6 rounded-2xl bg-gray-900/50 border border-gray-800/50 overflow-x-auto">
+            <pre className="text-xs sm:text-sm text-gray-300 font-mono whitespace-pre">{architectureDiagram}</pre>
+          </div>
+        </motion.div>
+
+        {/* Key Components */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          {[
+            { title: 'RoPE', desc: 'Rotary Position Embedding untuk generalisasi panjang sequence', icon: '🔄', color: 'purple' },
+            { title: 'SwiGLU', desc: 'Feed-forward dengan aktivasi SiLU untuk performa lebih baik', icon: '⚡', color: 'yellow' },
+            { title: 'RMSNorm', desc: 'Normalisasi lebih efisien dibanding LayerNorm', icon: '📊', color: 'cyan' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-5 rounded-xl bg-gray-900/50 border border-gray-800/50"
+            >
+              <div className="text-3xl mb-3">{item.icon}</div>
+              <h4 className="text-white font-semibold mb-1">{item.title}</h4>
+              <p className="text-gray-400 text-sm">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Code Tabs */}
+        <div className="flex flex-wrap gap-2 mb-6 justify-center">
+          {codeTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveCode(tab.id as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                activeCode === tab.id
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              <span className="text-sm font-medium">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Code Display */}
+        <motion.div
+          key={activeCode}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {activeCode === 'config' && <CodeBlock code={configCode} title="config.py" />}
+          {activeCode === 'tokenizer' && <CodeBlock code={tokenizerCode} title="tokenizer.py" />}
+          {activeCode === 'model' && <CodeBlock code={modelCode} title="model.py" />}
+          {activeCode === 'train' && <CodeBlock code={trainCode} title="train.py" />}
+          {activeCode === 'server' && <CodeBlock code={serverCode} title="server.py" />}
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+// ============ ROADMAP SECTION ============
+function RoadmapSection() {
+  const roadmap = [
+    { phase: '1', title: 'Prototipe', desc: 'Model kecil (4 layer, 256 dimensi)', time: '1-2 minggu', color: 'green' },
+    { phase: '2', title: 'Dataset', desc: 'Kumpulkan corpus Bahasa Indonesia + Inggris (10GB+)', time: '2-4 minggu', color: 'blue' },
+    { phase: '3', title: 'Scale Up', desc: 'Naikkan ke 1B+ parameter, banyak GPU', time: '2-3 bulan', color: 'cyan' },
+    { phase: '4', title: 'Pretraining', desc: 'Latih dari nol dengan massive dataset', time: '6-12 bulan', color: 'purple' },
+    { phase: '5', title: 'Fine-tuning', desc: 'Instruction tuning (SFT), RLHF, DPO', time: '2-4 minggu', color: 'pink' },
+    { phase: '6', title: 'Evaluasi', desc: 'Benchmark: MMLU, HumanEval, ARC-AGI', time: '1-2 minggu', color: 'yellow' },
+    { phase: '7', title: 'Deploy', desc: 'API server, scaling, monitoring', time: '2-4 minggu', color: 'orange' },
+  ];
+
+  const colorMap: Record<string, string> = {
+    green: 'from-green-500/20 to-green-500/5 border-green-500/30 text-green-400',
+    blue: 'from-blue-500/20 to-blue-500/5 border-blue-500/30 text-blue-400',
+    cyan: 'from-cyan-500/20 to-cyan-500/5 border-cyan-500/30 text-cyan-400',
+    purple: 'from-purple-500/20 to-purple-500/5 border-purple-500/30 text-purple-400',
+    pink: 'from-pink-500/20 to-pink-500/5 border-pink-500/30 text-pink-400',
+    yellow: 'from-yellow-500/20 to-yellow-500/5 border-yellow-500/30 text-yellow-400',
+    orange: 'from-orange-500/20 to-orange-500/5 border-orange-500/30 text-orange-400',
+  };
+
+  return (
+    <section id="roadmap" className="py-24 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Roadmap Pengembangan 🗺️
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Dari prototipe kecil hingga model produksi skala penuh
+          </p>
+        </motion.div>
+
+        <div className="relative">
+          {/* Timeline line */}
+          <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-green-500/50 via-purple-500/50 to-orange-500/50 hidden md:block" />
+
+          <div className="space-y-6">
+            {roadmap.map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="relative flex items-start gap-6"
+              >
+                {/* Timeline dot */}
+                <div className={`hidden md:flex flex-shrink-0 w-16 h-16 rounded-full bg-gradient-to-br ${colorMap[item.color]} border-2 items-center justify-center font-bold text-lg`}>
+                  {item.phase}
+                </div>
+
+                {/* Content card */}
+                <div className={`flex-1 p-6 rounded-2xl bg-gradient-to-br border backdrop-blur-sm ${colorMap[item.color]}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                    <h3 className="text-white font-bold text-lg">{item.title}</h3>
+                    <span className={`text-xs font-mono px-3 py-1 rounded-full bg-black/20 ${colorMap[item.color].split(' ').pop()}`}>
+                      <Clock className="w-3 h-3 inline mr-1" />
+                      {item.time}
+                    </span>
+                  </div>
+                  <p className="text-gray-300 text-sm">{item.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============ FEATURES SECTION ============
+function FeaturesSection() {
+  const features = [
+    { feature: 'Context 1M tokens', impl: 'FlashAttention + MoE (Mixture of Experts)', icon: '📏' },
+    { feature: 'Multi-modal (teks+gambar)', impl: 'Tambahkan Vision Transformer (ViT) encoder', icon: '🖼️' },
+    { feature: 'Tool use / Function calling', impl: 'Parse output JSON → eksekusi fungsi', icon: '🔧' },
+    { feature: 'Reasoning (chain-of-thought)', impl: 'Fine-tune dengan reasoning data', icon: '🧠' },
+    { feature: 'Agentic workflows', impl: 'Tambahkan planning module + tool loop', icon: '🤖' },
+    { feature: 'Computer use', impl: 'Integrasi dengan OS automation (screenshots + actions)', icon: '💻' },
+  ];
+
+  return (
+    <section id="features" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Fitur GPT-6 Astra 🔧
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Fitur-fitur advanced yang bisa diimplementasikan dalam model AI modern
+          </p>
+        </motion.div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {features.map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.05 }}
+              className="p-5 rounded-2xl bg-gray-900/50 border border-gray-800/50 hover:border-cyan-500/30 transition-all group"
+            >
+              <div className="text-3xl mb-3">{item.icon}</div>
+              <h3 className="text-white font-semibold mb-2 group-hover:text-cyan-300 transition-colors">{item.feature}</h3>
+              <p className="text-gray-400 text-sm">{item.impl}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============ QUICK START SECTION ============
+function QuickStartSection() {
+  const setupCode = `# Install dependencies
+pip install torch torchvision flask
+
+# Jalankan training
+python train.py
+
+# Jalankan server API
+python server.py
+
+# Test dengan curl
+curl -X POST http://localhost:8080/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Apa itu kecerdasan buatan?"}
+    ],
+    "temperature": 0.7
+  }'`;
+
+  return (
+    <section id="quickstart" className="py-24 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Setup Cepat 📦
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Jalankan prototipe GPT-6 Astra dalam hitungan menit
+          </p>
+        </motion.div>
+
+        <CodeBlock code={setupCode} title="setup.sh" />
+
+        {/* Important notes */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4"
+        >
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border border-yellow-500/20">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <h3 className="text-white font-semibold mb-2">Model Prototipe</h3>
+                <p className="text-gray-300 text-sm">
+                  Kode di atas adalah prototipe kecil (~10M parameter) untuk belajar. 
+                  GPT-6 Astra asli membutuhkan ~triliunan parameter dan ribuan GPU.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">💡</span>
+              <div>
+                <h3 className="text-white font-semibold mb-2">Saran Praktis</h3>
+                <p className="text-gray-300 text-sm">
+                  Untuk produksi, lebih baik fine-tune model open-source (LLaMA, Mistral, Qwen) 
+                  daripada melatih dari nol. Gunakan HuggingFace + Unsloth.
+                </p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
 // ============ FOOTER ============
 function Footer() {
   return (
@@ -1920,6 +2651,7 @@ export default function App() {
       <Navigation />
       <HeroSection />
       <OverviewSection />
+      <GPT6AstraBlueprintSection />
       <ArchitectureSection />
       <TokenizationSection />
       <PipelineSection />
@@ -1929,6 +2661,9 @@ export default function App() {
       <RLHFSection />
       <ResourcesSection />
       <DeploymentSection />
+      <RoadmapSection />
+      <FeaturesSection />
+      <QuickStartSection />
       <GettingStartedSection />
       <LearningSection />
       <Footer />
