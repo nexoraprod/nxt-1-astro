@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  app:
+    image: ${DOCKER_IMAGE:-nxt-1-astro:latest}
+    container_name: nxt-1-astro
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Jakarta
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "maintainer=your-email@example.com"
+
+  # Optional: Watchtower untuk auto-update container
+  watchtower:
+    image: containrrr/watchtower
+    container_name: nxt-1-astro-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --cleanup --label-enable
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+    profiles:
+      - auto-update
+
+  # Optional: Nginx reverse proxy untuk SSL
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: nxt-1-astro-proxy
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx-ssl.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    profiles:
+      - ssl
+
+  # Optional: Backup service
+  backup:
+    image: alpine
+    container_name: nxt-1-astro-backup
+    restart: unless-stopped
+    volumes:
+      - ./backups:/backups
+      - /var/lib/docker/volumes:/volumes:ro
+    command: >
+      sh -c "while true; do
+        tar -czf /backups/backup-$$(date +%Y%m%d-%H%M%S).tar.gz /volumes;
+        find /backups -name 'backup-*.tar.gz' -mtime +7 -delete;
+        sleep 86400;
+      done"
+    profiles:
+      - backup

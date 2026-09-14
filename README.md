@@ -417,6 +417,42 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+## 🚀 Deploy dari GitHub
+
+Untuk panduan lengkap deployment dari GitHub repository, lihat:
+
+- **[QUICKSTART.md](./QUICKSTART.md)** - Quick start 5 menit
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Panduan deployment lengkap
+
+### Quick Deploy Commands
+
+```bash
+# 1. Fork & clone repository
+git clone https://github.com/YOUR_USERNAME/nxt-1-astro.git
+cd nxt-1-astro
+
+# 2. Build & push ke Docker Hub
+docker build -t YOUR_USERNAME/nxt-1-astro:latest .
+docker push YOUR_USERNAME/nxt-1-astro:latest
+
+# 3. Deploy ke server
+ssh YOUR_SERVER "cd /opt/nxt-1-astro && docker-compose pull && docker-compose up -d"
+```
+
+### Auto Deploy dengan GitHub Actions
+
+Setup GitHub secrets:
+- `DOCKERHUB_USERNAME` - Username Docker Hub
+- `DOCKERHUB_TOKEN` - Access Token Docker Hub
+- `SERVER_HOST` - IP server
+- `SERVER_USERNAME` - Username SSH
+- `SERVER_SSH_KEY` - Private SSH key
+- `SERVER_PATH` - `/opt/nxt-1-astro`
+
+Setiap push ke `main` branch akan auto deploy! 🚀
+
+---
+
 ## 📧 Contact
 
 - **Author**: Your Name
