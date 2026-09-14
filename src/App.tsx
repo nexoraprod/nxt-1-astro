@@ -15,6 +15,10 @@ function Navigation() {
     { href: '#overview', label: 'Overview' },
     { href: '#gpt6-astra', label: 'GPT-6 Astra' },
     { href: '#architecture', label: 'Arsitektur' },
+    { href: '#finetuning', label: 'Fine-Tuning' },
+    { href: '#rag', label: 'RAG' },
+    { href: '#agent', label: 'Agent AI' },
+    { href: '#multimodal', label: 'Multimodal' },
     { href: '#pipeline', label: 'Pipeline' },
     { href: '#training', label: 'Training' },
     { href: '#rlhf', label: 'RLHF' },
@@ -2619,6 +2623,982 @@ curl -X POST http://localhost:8080/v1/chat/completions \\
   );
 }
 
+// ============ FINE-TUNING SECTION ============
+function FineTuningSection() {
+  const [activeMethod, setActiveMethod] = useState<'full' | 'lora' | 'qlora'>('lora');
+
+  const fullFinetuneCode = `# Full Fine-Tuning dengan Hugging Face
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from trl import SFTTrainer
+from datasets import load_dataset
+
+# Load model dan tokenizer
+model_name = "meta-llama/Llama-2-7b-hf"
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+tokenizer.pad_token = tokenizer.eos_token
+
+# Load dataset instruksi
+dataset = load_dataset("tatsu-lab/alpaca", split="train[:10000]")
+
+# Format prompt
+def format_instruction(example):
+    return f"""### Instruction:
+{example['instruction']}
+
+### Input:
+{example['input']}
+
+### Response:
+{example['output']}"""
+
+# Training arguments
+training_args = TrainingArguments(
+    output_dir="./llama2-finetuned",
+    num_train_epochs=3,
+    per_device_train_batch_size=4,
+    gradient_accumulation_steps=4,
+    learning_rate=2e-5,
+    warmup_steps=100,
+    logging_steps=10,
+    save_strategy="epoch",
+    fp16=True,
+    optim="adamw_torch",
+)
+
+# Initialize trainer
+trainer = SFTTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=dataset,
+    formatting_func=format_instruction,
+    max_seq_length=512,
+    tokenizer=tokenizer,
+)
+
+# Train
+trainer.train()
+trainer.save_model("./llama2-alpaca-finetuned")`;
+
+  const loraCode = `# LoRA (Low-Rank Adaptation) dengan PEFT
+from peft import LoraConfig, get_peft_model, TaskType
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from trl import SFTTrainer
+
+# Load base model
+model_name = "meta-llama/Llama-2-7b-hf"
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# LoRA configuration
+lora_config = LoraConfig(
+    task_type=TaskType.CAUSAL_LM,
+    inference_mode=False,
+    r=16,  # Rank (8, 16, 32, 64)
+    lora_alpha=32,  # Scaling factor
+    lora_dropout=0.1,
+    target_modules=["q_proj", "v_proj", "k_proj", "o_proj"],  # Attention layers
+    bias="none",
+)
+
+# Apply LoRA
+model = get_peft_model(model, lora_config)
+model.print_trainable_parameters()
+# Output: trainable params: 4,194,304 || all params: 6,742,609,920 || trainable%: 0.0622
+
+# Training (sama seperti full fine-tuning)
+training_args = TrainingArguments(
+    output_dir="./llama2-lora",
+    num_train_epochs=3,
+    per_device_train_batch_size=8,  # Bisa lebih besar karena parameter lebih sedikit
+    learning_rate=2e-4,  # LR lebih tinggi untuk LoRA
+    fp16=True,
+)
+
+trainer = SFTTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=dataset,
+    formatting_func=format_instruction,
+    max_seq_length=512,
+)
+
+trainer.train()
+
+# Save LoRA weights saja (sangat kecil!)
+model.save_pretrained("./llama2-lora-weights")
+# Size: ~50MB vs 14GB untuk full model`;
+
+  const qloraCode = `# QLoRA (Quantized LoRA) - 4-bit quantization + LoRA
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+import torch
+
+# 4-bit quantization config
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",  # Normal Float 4-bit
+    bnb_4bit_compute_dtype=torch.float16,
+    bnb_4bit_use_double_quant=True,  # Nested quantization
+)
+
+# Load quantized model
+model_name = "meta-llama/Llama-2-7b-hf"
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    quantization_config=bnb_config,
+    device_map="auto"
+)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Prepare model for k-bit training
+model = prepare_model_for_kbit_training(model)
+
+# LoRA config
+lora_config = LoraConfig(
+    r=16,
+    lora_alpha=32,
+    target_modules=["q_proj", "v_proj"],
+    lora_dropout=0.05,
+    bias="none",
+    task_type="CAUSAL_LM"
+)
+
+# Apply LoRA
+model = get_peft_model(model, lora_config)
+
+# Memory usage:
+# Full model (FP16): ~14GB
+# 4-bit quantized: ~3.5GB
+# + LoRA adapters: ~50MB
+# Total: ~3.5GB (bisa train di GPU 6GB!)
+
+print(f"Model memory: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+
+# Training
+trainer = SFTTrainer(
+    model=model,
+    train_dataset=dataset,
+    args=training_args,
+    max_seq_length=512,
+)
+
+trainer.train()
+
+# Merge LoRA weights back ke base model (optional)
+from peft import PeftModel
+merged_model = model.merge_and_unload()
+merged_model.save_pretrained("./llama2-qlora-merged")`;
+
+  const methods = [
+    { id: 'full', label: 'Full Fine-Tuning', icon: Layers },
+    { id: 'lora', label: 'LoRA', icon: Zap },
+    { id: 'qlora', label: 'QLoRA (4-bit)', icon: Cpu },
+  ];
+
+  return (
+    <section id="finetuning" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-green-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Fine-Tuning 🎯
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Adaptasi model pre-trained ke tugas spesifik dengan Full Fine-Tuning, LoRA, atau QLoRA
+          </p>
+        </motion.div>
+
+        {/* Method comparison */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          {[
+            { method: 'Full Fine-Tuning', params: '100%', memory: '14GB+', speed: 'Lambat', color: 'red' },
+            { method: 'LoRA', params: '0.1%', memory: '14GB', speed: 'Cepat', color: 'yellow' },
+            { method: 'QLoRA', params: '0.1%', memory: '3.5GB', speed: 'Cepat', color: 'green' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-5 rounded-xl bg-gray-900/50 border border-gray-800/50"
+            >
+              <h3 className={`text-${item.color}-400 font-semibold mb-3`}>{item.method}</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Trainable Params:</span>
+                  <span className="text-white font-mono">{item.params}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">GPU Memory:</span>
+                  <span className="text-white font-mono">{item.memory}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Speed:</span>
+                  <span className="text-white">{item.speed}</span>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Code tabs */}
+        <div className="flex flex-wrap gap-2 mb-6 justify-center">
+          {methods.map(method => (
+            <button
+              key={method.id}
+              onClick={() => setActiveMethod(method.id as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                activeMethod === method.id
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'
+              }`}
+            >
+              <method.icon className="w-4 h-4" />
+              <span className="text-sm font-medium">{method.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <motion.div
+          key={activeMethod}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {activeMethod === 'full' && <CodeBlock code={fullFinetuneCode} title="full_finetuning.py" />}
+          {activeMethod === 'lora' && <CodeBlock code={loraCode} title="lora_finetuning.py" />}
+          {activeMethod === 'qlora' && <CodeBlock code={qloraCode} title="qlora_finetuning.py" />}
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+// ============ RAG SECTION ============
+function RAGSection() {
+  const ragCode = `# RAG (Retrieval-Augmented Generation) Implementation
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import Chroma
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.document_loaders import PyPDFLoader, TextLoader
+from langchain.chains import RetrievalQA
+from langchain.llms import HuggingFacePipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+
+# 1. Load documents
+loaders = [
+    PyPDFLoader("documents/manual.pdf"),
+    TextLoader("documents/knowledge_base.txt"),
+]
+docs = []
+for loader in loaders:
+    docs.extend(loader.load())
+
+# 2. Split documents into chunks
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200,
+    length_function=len,
+)
+chunks = text_splitter.split_documents(docs)
+
+# 3. Create embeddings
+embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
+)
+
+# 4. Create vector store
+vectorstore = Chroma.from_documents(
+    documents=chunks,
+    embedding=embeddings,
+    persist_directory="./chroma_db"
+)
+
+# 5. Load LLM
+model_name = "meta-llama/Llama-2-7b-hf"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+
+pipe = pipeline(
+    "text-generation",
+    model=model,
+    tokenizer=tokenizer,
+    max_new_tokens=512,
+    temperature=0.7,
+)
+
+llm = HuggingFacePipeline(pipeline=pipe)
+
+# 6. Create RAG chain
+qa_chain = RetrievalQA.from_chain_type(
+    llm=llm,
+    chain_type="stuff",
+    retriever=vectorstore.as_retriever(
+        search_type="similarity",
+        search_kwargs={"k": 3}  # Retrieve top 3 chunks
+    ),
+    return_source_documents=True,
+)
+
+# 7. Query
+query = "Apa prosedur backup database?"
+result = qa_chain({"query": query})
+
+print(f"Answer: {result['result']}")
+print(f"\\nSources:")
+for doc in result['source_documents']:
+    print(f"- {doc.metadata['source']}: {doc.page_content[:100]}...")`;
+
+  const advancedRagCode = `# Advanced RAG dengan Re-ranking dan Query Expansion
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import LLMChainExtractor
+from langchain.prompts import PromptTemplate
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
+
+# Contextual compression (extract only relevant parts)
+compressor = LLMChainExtractor.from_llm(llm)
+compression_retriever = ContextualCompressionRetriever(
+    base_compressor=compressor,
+    base_retriever=vectorstore.as_retriever(search_kwargs={"k": 5})
+)
+
+# Conversational memory
+memory = ConversationBufferMemory(
+    memory_key="chat_history",
+    return_messages=True,
+    output_key="answer"
+)
+
+# Conversational RAG chain
+qa_chain = ConversationalRetrievalChain.from_llm(
+    llm=llm,
+    retriever=compression_retriever,
+    memory=memory,
+    return_source_documents=True,
+)
+
+# Multi-query retrieval (generate multiple queries)
+from langchain.retrievers.multi_query import MultiQueryRetriever
+
+multi_query_retriever = MultiQueryRetriever.from_llm(
+    retriever=vectorstore.as_retriever(),
+    llm=llm
+)
+
+# Hybrid search (dense + sparse)
+from langchain.retrievers import EnsembleRetriever
+from langchain.retrievers import BM25Retriever
+
+bm25_retriever = BM25Retriever.from_documents(chunks)
+bm25_retriever.k = 3
+
+ensemble_retriever = EnsembleRetriever(
+    retrievers=[bm25_retriever, vectorstore.as_retriever(search_kwargs={"k": 3})],
+    weights=[0.4, 0.6]  # 40% BM25, 60% dense
+)
+
+# Query with hybrid search
+query = "Bagaimana cara reset password?"
+result = qa_chain({"question": query})`;
+
+  return (
+    <section id="rag" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            RAG (Retrieval-Augmented Generation) 📚
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Perkuat model AI dengan knowledge base eksternal menggunakan vector database
+          </p>
+        </motion.div>
+
+        {/* RAG Pipeline diagram */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mb-12 p-6 rounded-2xl bg-gray-900/50 border border-gray-800/50"
+        >
+          <h3 className="text-lg font-semibold text-white mb-6 text-center">RAG Pipeline</h3>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+            {[
+              { step: '1', title: 'Documents', desc: 'PDF, TXT, Web', icon: Database },
+              { step: '2', title: 'Chunking', desc: 'Split into segments', icon: Layers },
+              { step: '3', title: 'Embeddings', desc: 'Vector representation', icon: Brain },
+              { step: '4', title: 'Vector DB', desc: 'Chroma, Pinecone', icon: Server },
+              { step: '5', title: 'Retrieval', desc: 'Similarity search', icon: Zap },
+              { step: '6', title: 'Generation', desc: 'LLM + context', icon: Code2 },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className="text-center">
+                  <div className="w-14 h-14 rounded-full bg-blue-500/10 border-2 border-blue-500/30 flex items-center justify-center mb-2">
+                    <item.icon className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <div className="text-xs text-blue-400 font-mono mb-1">Step {item.step}</div>
+                  <div className="text-white font-semibold text-xs mb-1">{item.title}</div>
+                  <div className="text-gray-500 text-xs max-w-[100px]">{item.desc}</div>
+                </div>
+                {i < 5 && <ArrowRight className="w-4 h-4 text-gray-600 hidden md:block" />}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Database className="w-5 h-5 text-blue-400" />
+              Basic RAG Implementation
+            </h3>
+            <CodeBlock code={ragCode} title="rag_basic.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-400" />
+              Advanced RAG Features
+            </h3>
+            <CodeBlock code={advancedRagCode} title="rag_advanced.py" />
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============ AGENT AI SECTION ============
+function AgentAISection() {
+  const agentCode = `# AI Agent dengan LangChain
+from langchain.agents import Tool, AgentExecutor, initialize_agent
+from langchain.llms import HuggingFacePipeline
+from langchain.tools import BaseTool
+from pydantic import BaseModel, Field
+import requests
+import json
+
+# Define custom tools
+class SearchInput(BaseModel):
+    query: str = Field(description="Search query untuk mencari informasi")
+
+class WebSearchTool(BaseTool):
+    name = "web_search"
+    description = "Berguna untuk mencari informasi terkini dari internet"
+    args_schema: Type[BaseModel] = SearchInput
+    
+    def _run(self, query: str):
+        # Implementasi search API (contoh: SerpAPI)
+        # return search_results
+        return f"Hasil pencarian untuk: {query}"
+    
+    def _arun(self, query: str):
+        raise NotImplementedError("Async not supported")
+
+class CalculatorTool(BaseTool):
+    name = "calculator"
+    description = "Berguna untuk melakukan perhitungan matematika"
+    
+    def _run(self, query: str):
+        try:
+            return eval(query)
+        except:
+            return "Error: Invalid expression"
+
+class PythonREPLTool(BaseTool):
+    name = "python_repl"
+    description = "Berguna untuk menjalankan kode Python"
+    
+    def _run(self, query: str):
+        try:
+            import io
+            import sys
+            old_stdout = sys.stdout
+            sys.stdout = io.StringIO()
+            exec(query)
+            output = sys.stdout.getvalue()
+            sys.stdout = old_stdout
+            return output if output else "Code executed successfully"
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+# Initialize tools
+tools = [
+    WebSearchTool(),
+    CalculatorTool(),
+    PythonREPLTool(),
+]
+
+# Initialize LLM
+llm = HuggingFacePipeline(pipeline=pipe)
+
+# Create agent
+agent = initialize_agent(
+    tools=tools,
+    llm=llm,
+    agent="zero-shot-react-description",
+    verbose=True,
+    max_iterations=5,
+)
+
+# Run agent
+query = "Berapa hasil dari 123 * 456 + 789? Kemudian cari informasi tentang Python programming."
+result = agent.run(query)
+print(result)`;
+
+  const advancedAgentCode = `# Advanced Agent dengan Planning dan Memory
+from langchain.agents import AgentExecutor
+from langchain.chat_models import ChatOpenAI
+from langchain.memory import ConversationBufferWindowMemory
+from langchain.prompts import MessagesPlaceholder
+from langchain.agents import create_openai_functions_agent
+from langchain.schema import SystemMessage
+
+# System prompt untuk agent
+system_message = SystemMessage(
+    content="""Kamu adalah AI assistant yang sangat capable.
+    
+Kamu memiliki akses ke berbagai tools:
+- web_search: Untuk mencari informasi terkini
+- calculator: Untuk perhitungan matematika
+- python_repl: Untuk menjalankan kode Python
+- database_query: Untuk query database
+
+Strategi:
+1. Pahami intent user
+2. Break down complex tasks menjadi sub-tasks
+3. Gunakan tools yang sesuai
+4. Verifikasi hasil sebelum memberikan jawaban
+5. Jika tidak yakin, katakan dengan jujur
+
+Selalu berpikir step-by-step dan jelaskan reasoning kamu."""
+)
+
+# Create agent dengan OpenAI functions
+prompt = ChatPromptTemplate.from_messages([
+    system_message,
+    MessagesPlaceholder(variable_name="chat_history"),
+    ("user", "{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
+])
+
+agent = create_openai_functions_agent(llm, tools, prompt)
+
+# Memory untuk conversational context
+memory = ConversationBufferWindowMemory(
+    memory_key="chat_history",
+    return_messages=True,
+    k=10  # Keep last 10 messages
+)
+
+# Agent executor
+agent_executor = AgentExecutor(
+    agent=agent,
+    tools=tools,
+    memory=memory,
+    verbose=True,
+    handle_parsing_errors=True,
+    max_iterations=10,
+)
+
+# Multi-step reasoning
+query = """
+Saya ingin membuat aplikasi web untuk manajemen tugas. 
+Bisa tolong:
+1. Rancang database schema
+2. Buat kode Python untuk backend API
+3. Hitung estimasi waktu development
+4. Cari referensi best practices
+"""
+
+result = agent_executor.invoke({"input": query})
+print(result["output"])
+
+# Agent dengan custom planning
+from langchain.chains import LLMMathChain
+from langchain.agents import create_react_agent
+
+# ReAct (Reasoning + Acting) pattern
+react_prompt = PromptTemplate.from_template("""
+Jawab pertanyaan berikut dengan berpikir step-by-step.
+
+Kamu memiliki akses ke tools berikut:
+{tools}
+
+Gunakan format berikut:
+
+Question: pertanyaan yang harus kamu jawab
+Thought: kamu harus selalu berpikir tentang apa yang harus dilakukan
+Action: action yang harus diambil, harus salah satu dari [{tool_names}]
+Action Input: input untuk action
+Observation: hasil dari action
+... (Thought/Action/Action Input/Observation bisa diulang N kali)
+Thought: Sekarang saya tahu jawaban final
+Final Answer: jawaban final untuk pertanyaan original
+
+Begin!
+
+Question: {input}
+Thought:{agent_scratchpad}
+""")
+
+agent = create_react_agent(llm, tools, react_prompt)`;
+
+  return (
+    <section id="agent" className="py-24 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Agent AI 🤖
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Bangun AI agent yang bisa menggunakan tools, melakukan planning, dan menyelesaikan tugas kompleks
+          </p>
+        </motion.div>
+
+        {/* Agent capabilities */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
+          {[
+            { title: 'Tool Use', desc: 'Akses ke search, calculator, code execution', icon: '🔧', color: 'yellow' },
+            { title: 'Planning', desc: 'Break down complex tasks', icon: '📋', color: 'blue' },
+            { title: 'Memory', desc: 'Conversational context', icon: '🧠', color: 'purple' },
+            { title: 'Reasoning', desc: 'Step-by-step thinking', icon: '💭', color: 'cyan' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-5 rounded-xl bg-gray-900/50 border border-gray-800/50"
+            >
+              <div className="text-3xl mb-2">{item.icon}</div>
+              <h3 className={`text-${item.color}-400 font-semibold text-sm mb-1`}>{item.title}</h3>
+              <p className="text-gray-400 text-xs">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-400" />
+              Basic Agent Implementation
+            </h3>
+            <CodeBlock code={agentCode} title="agent_basic.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Brain className="w-5 h-5 text-purple-400" />
+              Advanced Agent with Planning
+            </h3>
+            <CodeBlock code={advancedAgentCode} title="agent_advanced.py" />
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============ MULTIMODAL SECTION ============
+function MultimodalSection() {
+  const visionCode = `# Multimodal: Vision + Language Model
+from transformers import AutoProcessor, AutoModelForVision2Seq
+from PIL import Image
+import torch
+
+# Load LLaVA (Large Language and Vision Assistant)
+model_id = "llava-hf/llava-1.5-7b-hf"
+processor = AutoProcessor.from_pretrained(model_id)
+model = AutoModelForVision2Seq.from_pretrained(
+    model_id,
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+
+# Load image
+image = Image.open("example.jpg")
+
+# Conversation
+conversation = [
+    {
+        "role": "user",
+        "content": [
+            {"type": "image"},
+            {"type": "text", "text": "Apa yang ada di gambar ini? Jelaskan detail."},
+        ],
+    },
+]
+
+# Process inputs
+prompt = processor.apply_chat_template(conversation, add_generation_prompt=True)
+inputs = processor(
+    images=image,
+    text=prompt,
+    return_tensors="pt"
+).to("cuda", torch.float16)
+
+# Generate
+output = model.generate(**inputs, max_new_tokens=500, do_sample=False)
+response = processor.decode(output[0], skip_special_tokens=True)
+
+print(response)
+# Output: "Gambar ini menunjukkan..."
+
+# Batch processing
+images = [Image.open(f"img{i}.jpg") for i in range(1, 5)]
+prompts = ["Describe this image"] * 4
+
+inputs = processor(
+    images=images,
+    text=prompts,
+    return_tensors="pt",
+    padding=True
+).to("cuda")
+
+outputs = model.generate(**inputs, max_new_tokens=200)
+for output in outputs:
+    print(processor.decode(output, skip_special_tokens=True))`;
+
+  const audioCode = `# Multimodal: Speech-to-Text + Text-to-Speech
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+import torch
+
+# Speech-to-Text (Whisper)
+stt_model_id = "openai/whisper-large-v3"
+stt_model = AutoModelForSpeechSeq2Seq.from_pretrained(
+    stt_model_id,
+    torch_dtype=torch.float16,
+    low_cpu_mem_usage=True,
+)
+stt_processor = AutoProcessor.from_pretrained(stt_model_id)
+
+stt_pipeline = pipeline(
+    "automatic-speech-recognition",
+    model=stt_model,
+    tokenizer=stt_processor.tokenizer,
+    feature_extractor=stt_processor.feature_extractor,
+    torch_dtype=torch.float16,
+    device="cuda",
+)
+
+# Transcribe audio
+result = stt_pipeline("audio.wav")
+print(f"Transcript: {result['text']}")
+
+# Text-to-Speech (Bark)
+from bark import SAMPLE_RATE, generate_audio, preload_models
+from scipy.io.wavfile import write as write_wav
+
+# Download and load models
+preload_models()
+
+# Generate speech
+text_prompt = "Halo, selamat datang di nxt-1 astro!"
+audio_array = generate_audio(text_prompt, history_prompt="id_speaker_0")
+
+# Save audio
+write_wav("output.wav", SAMPLE_RATE, audio_array)
+
+# Multi-language support
+languages = {
+    "en": "en_speaker_0",
+    "id": "id_speaker_0",
+    "ja": "ja_speaker_0",
+    "zh": "zh_speaker_0",
+}
+
+for lang, speaker in languages.items():
+    audio = generate_audio(f"Hello in {lang}", history_prompt=speaker)
+    write_wav(f"output_{lang}.wav", SAMPLE_RATE, audio)`;
+
+  const videoCode = `# Multimodal: Video Understanding
+from transformers import AutoProcessor, AutoModelForVision2Seq
+from decord import VideoReader, cpu
+from PIL import Image
+import torch
+
+# Load Video-LLaMA or similar model
+model_id = "DAMO-NLP-SG/Video-LLaMA-2-13B"
+processor = AutoProcessor.from_pretrained(model_id)
+model = AutoModelForVision2Seq.from_pretrained(
+    model_id,
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+
+# Extract frames from video
+def extract_frames(video_path, num_frames=8):
+    vr = VideoReader(video_path, ctx=cpu(0))
+    total_frames = len(vr)
+    indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
+    frames = [Image.fromarray(f) for f in vr.get_batch(indices).asnumpy()]
+    return frames
+
+# Process video
+video_path = "example.mp4"
+frames = extract_frames(video_path, num_frames=8)
+
+# Question about video
+conversation = [
+    {
+        "role": "user",
+        "content": [
+            {"type": "video", "data": frames},
+            {"type": "text", "text": "Apa yang terjadi di video ini? Jelaskan kronologinya."},
+        ],
+    },
+]
+
+prompt = processor.apply_chat_template(conversation, add_generation_prompt=True)
+inputs = processor(
+    videos=frames,
+    text=prompt,
+    return_tensors="pt"
+).to("cuda", torch.float16)
+
+output = model.generate(**inputs, max_new_tokens=500)
+response = processor.decode(output[0], skip_special_tokens=True)
+
+print(response)
+# Output: "Video ini menunjukkan..."
+
+# Video captioning
+caption_prompt = "Generate a detailed caption for this video"
+inputs = processor(videos=frames, text=caption_prompt, return_tensors="pt").to("cuda")
+caption = model.generate(**inputs, max_new_tokens=200)
+print(processor.decode(caption[0], skip_special_tokens=True))`;
+
+  return (
+    <section id="multimodal" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-pink-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Multimodal AI 🎨
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Integrasi vision, audio, dan video ke dalam model AI untuk pemahaman multi-sensori
+          </p>
+        </motion.div>
+
+        {/* Modalities */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          {[
+            { modality: 'Vision', desc: 'Image understanding, OCR, visual QA', icon: '👁️', model: 'LLaVA, GPT-4V' },
+            { modality: 'Audio', desc: 'Speech-to-text, text-to-speech', icon: '🎵', model: 'Whisper, Bark' },
+            { modality: 'Video', desc: 'Video understanding, captioning', icon: '🎬', model: 'Video-LLaMA' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-5 rounded-xl bg-gray-900/50 border border-gray-800/50"
+            >
+              <div className="text-4xl mb-3">{item.icon}</div>
+              <h3 className="text-pink-400 font-semibold mb-1">{item.modality}</h3>
+              <p className="text-gray-400 text-sm mb-2">{item.desc}</p>
+              <div className="text-xs text-gray-500 font-mono">{item.model}</div>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="space-y-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Globe className="w-5 h-5 text-pink-400" />
+              Vision + Language (LLaVA)
+            </h3>
+            <CodeBlock code={visionCode} title="multimodal_vision.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-400" />
+              Speech Processing (Whisper + Bark)
+            </h3>
+            <CodeBlock code={audioCode} title="multimodal_audio.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-cyan-400" />
+              Video Understanding (Video-LLaMA)
+            </h3>
+            <CodeBlock code={videoCode} title="multimodal_video.py" />
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ============ FOOTER ============
 function Footer() {
   return (
@@ -2657,6 +3637,10 @@ export default function App() {
       <PipelineSection />
       <TrainingLoopSection />
       <DistributedTrainingSection />
+      <FineTuningSection />
+      <RAGSection />
+      <AgentAISection />
+      <MultimodalSection />
       <ToolsSection />
       <RLHFSection />
       <ResourcesSection />
