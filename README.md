@@ -8,7 +8,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7.0-3178C6.svg)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)
 
-**Panduan komprehensif untuk membangun model AI seperti GPT-6 Astra**
+**Panduan komprehensif untuk membangun model AI nxt-1 astro**
 
 [Demo](#-demo) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
@@ -34,7 +34,7 @@
 
 ## 🎯 Tentang
 
-**nxt-1 astro** adalah panduan interaktif lengkap untuk membangun model AI skala besar seperti GPT-6. Website ini mencakup seluruh lifecycle pengembangan AI:
+**nxt-1 astro** adalah panduan interaktif lengkap untuk membangun model AI skala besar. Website ini mencakup seluruh lifecycle pengembangan AI:
 
 - ✅ Blueprint arsitektur Transformer
 - ✅ Implementasi kode lengkap (25+ file Python)
@@ -351,7 +351,7 @@ nxt-1-astro/
 | # | Section | Deskripsi |
 |---|---------|-----------|
 | 1 | Overview | Komponen utama AI model |
-| 2 | GPT-6 Astra Blueprint | Arsitektur lengkap |
+| 2 | nxt-1 astro Blueprint | Arsitektur lengkap |
 | 3 | Architecture | Transformer decoder-only |
 | 4 | Tokenization | BPE, SentencePiece |
 | 5 | Data Engineering | Data pipeline |

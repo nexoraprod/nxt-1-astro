@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **27 comprehensive sections** covering entire AI development lifecycle
 - **25+ Python code examples** with production-ready implementations
-- **GPT-6 Astra Blueprint** - Complete architecture with RoPE, SwiGLU, RMSNorm
+- **nxt-1 astro Blueprint** - Complete architecture with RoPE, SwiGLU, RMSNorm
 - **Tokenization section** - BPE, SentencePiece implementations
 - **Data Engineering** - Pipeline processing, synthetic data generation
 - **Training Loop** - Mixed precision, gradient accumulation, distributed training

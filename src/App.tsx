@@ -13,7 +13,7 @@ function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const links = [
     { href: '#overview', label: 'Overview' },
-    { href: '#gpt6-astra', label: 'GPT-6 Astra' },
+    { href: '#nxt1-astro', label: 'nxt-1 astro' },
     { href: '#data-engineering', label: 'Data' },
     { href: '#finetuning', label: 'Fine-Tuning' },
     { href: '#rag', label: 'RAG' },
@@ -125,7 +125,7 @@ function HeroSection() {
 
           <p className="text-xl text-gray-400 max-w-3xl mx-auto mb-10 leading-relaxed">
             Jelajahi galaksi AI — dari arsitektur Transformer hingga deployment. Panduan komprehensif
-            untuk membangun model AI skala besar seperti GPT-6, dari nol hingga produksi.
+            untuk membangun model AI skala besar, dari nol hingga produksi.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -963,7 +963,7 @@ function LearningSection() {
             <div>
               <h3 className="text-white font-semibold mb-2">💡 Catatan Penting</h3>
               <p className="text-gray-300 text-sm leading-relaxed">
-                Membangun model setara GPT-6 membutuhkan sumber daya miliaran dolar. Namun, Anda bisa{' '}
+                Membangun model AI skala besar membutuhkan sumber daya miliaran dolar. Namun, Anda bisa{' '}
                 <span className="text-purple-300 font-medium">membangun aplikasi AI yang sangat berguna</span>{' '}
                 dengan memanfaatkan model open-source yang sudah ada + fine-tuning + RAG. 
                 Itulah pendekatan yang paling realistis dan efektif saat ini.
@@ -1893,12 +1893,12 @@ if __name__ == "__main__":
   );
 }
 
-// ============ GPT-6 ASTRA BLUEPRINT SECTION ============
-function GPT6AstraBlueprintSection() {
+// ============ NXT-1 ASTRO BLUEPRINT SECTION ============
+function NXT1AstroBlueprintSection() {
   const [activeCode, setActiveCode] = useState<'config' | 'tokenizer' | 'model' | 'train' | 'server'>('config');
 
   const architectureDiagram = `┌──────────────────────────────────────────────────────────┐
-│                    GPT-6 ASTRA PROTOTYPE                  │
+│                    NXT-1 ASTRO PROTOTYPE                  │
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
 │  Input Text → [Tokenizer (BPE/SentencePiece)] → Token IDs│
@@ -1927,7 +1927,7 @@ function GPT6AstraBlueprintSection() {
 
   const configCode = `# config.py
 class GPTConfig:
-    """Konfigurasi untuk model GPT-6 Astra Prototype"""
+    """Konfigurasi untuk model nxt-1 astro Prototype"""
     vocab_size: int = 50257       # Ukuran kosakata
     max_seq_len: int = 2048       # Panjang maksimum sequence
     d_model: int = 768            # Dimensi embedding
@@ -2095,7 +2095,7 @@ class TransformerBlock(nn.Module):
         return x
 
 class GPTModel(nn.Module):
-    """GPT-6 Astra Prototype — Transformer Decoder-Only"""
+    """nxt-1 astro Prototype — Transformer Decoder-Only"""
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -2162,7 +2162,7 @@ from model import GPTModel, GPTConfig
 from tokenizer import SimpleBPETokenizer
 
 def train_model():
-    """Loop training model GPT-6 Astra Prototype"""
+    """Loop training model nxt-1 astro Prototype"""
     
     config = GPTConfig(
         vocab_size=1000,
@@ -2215,7 +2215,7 @@ def train_model():
         if epoch % 100 == 0:
             print(f"Epoch {epoch:4d} | Loss: {loss.item():.4f} | LR: {scheduler.get_last_lr()[0]:.6f}")
     
-    torch.save(model.state_dict(), "gpt6_astra_prototype.pt")
+    torch.save(model.state_dict(), "nxt1_astro_prototype.pt")
     print("✅ Model disimpan!")
     
     return model, tokenizer
@@ -2254,7 +2254,7 @@ config = GPTConfig(
 )
 
 model = GPTModel(config)
-model.load_state_dict(torch.load("gpt6_astra_prototype.pt"))
+model.load_state_dict(torch.load("nxt1_astro_prototype.pt"))
 model.eval()
 
 tokenizer = SimpleBPETokenizer()
@@ -2288,9 +2288,9 @@ def chat_completion():
     response_text = tokenizer.decode(generated_ids)
     
     return jsonify({
-        "id": "chatcmpl-gpt6-astra",
+        "id": "chatcmpl-nxt1-astro",
         "object": "chat.completion",
-        "model": "gpt-6-astra-prototype",
+        "model": "nxt-1-astro-prototype",
         "choices": [{
             "index": 0,
             "message": {
@@ -2308,7 +2308,7 @@ def chat_completion():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "active", "model": "GPT-6 Astra Prototype"})
+    return jsonify({"status": "active", "model": "nxt-1 astro Prototype"})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)`;
@@ -2322,7 +2322,7 @@ if __name__ == "__main__":
   ];
 
   return (
-    <section id="gpt6-astra" className="py-24 relative">
+    <section id="nxt1-astro" className="py-24 relative">
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-950/10 to-transparent" />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
@@ -2336,7 +2336,7 @@ if __name__ == "__main__":
             <span className="text-sm text-purple-300">Blueprint Lengkap</span>
           </div>
           <h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
-            GPT-6 Astra Prototype
+            nxt-1 astro Prototype
           </h2>
           <p className="text-gray-400 max-w-3xl mx-auto">
             Arsitektur modern dengan RoPE, SwiGLU, dan RMSNorm — kode kerja lengkap dari konfigurasi hingga deployment
@@ -2517,7 +2517,7 @@ function FeaturesSection() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Fitur GPT-6 Astra 🔧
+            Fitur nxt-1 astro 🔧
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
             Fitur-fitur advanced yang bisa diimplementasikan dalam model AI modern
@@ -2579,7 +2579,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \\
             Setup Cepat 📦
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Jalankan prototipe GPT-6 Astra dalam hitungan menit
+            Jalankan prototipe nxt-1 astro dalam hitungan menit
           </p>
         </motion.div>
 
@@ -2599,7 +2599,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \\
                 <h3 className="text-white font-semibold mb-2">Model Prototipe</h3>
                 <p className="text-gray-300 text-sm">
                   Kode di atas adalah prototipe kecil (~10M parameter) untuk belajar. 
-                  GPT-6 Astra asli membutuhkan ~triliunan parameter dan ribuan GPU.
+                  Model AI skala penuh membutuhkan ~triliunan parameter dan ribuan GPU.
                 </p>
               </div>
             </div>
@@ -4750,7 +4750,7 @@ export default function App() {
       <Navigation />
       <HeroSection />
       <OverviewSection />
-      <GPT6AstraBlueprintSection />
+      <NXT1AstroBlueprintSection />
       <ArchitectureSection />
       <TokenizationSection />
       <DataEngineeringSection />
