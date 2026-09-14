@@ -22,6 +22,8 @@ function Navigation() {
     { href: '#advanced-arch', label: 'Advanced' },
     { href: '#evaluation', label: 'Evaluasi' },
     { href: '#safety', label: 'Safety' },
+    { href: '#monitoring', label: 'Monitoring' },
+    { href: '#optimization', label: 'Optimasi' },
     { href: '#roadmap', label: 'Roadmap' },
     { href: '#deployment', label: 'Deploy' },
     { href: '#learning', label: 'Belajar' },
@@ -4718,6 +4720,875 @@ print(f"Generated {len(preference_data)} preference pairs")`;
   );
 }
 
+// ============ MONITORING SECTION ============
+function MonitoringSection() {
+  const monitoringCode = `# Monitoring & Observability untuk Model AI
+import time
+import logging
+from prometheus_client import Counter, Histogram, Gauge, start_http_server
+from datetime import datetime
+import json
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('model_monitoring.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('nxt1-astro-monitor')
+
+# Prometheus metrics
+REQUEST_COUNT = Counter(
+    'model_requests_total',
+    'Total number of requests',
+    ['model_name', 'endpoint', 'status']
+)
+
+REQUEST_LATENCY = Histogram(
+    'model_request_latency_seconds',
+    'Request latency in seconds',
+    ['model_name', 'endpoint'],
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0]
+)
+
+TOKENS_GENERATED = Counter(
+    'model_tokens_generated_total',
+    'Total tokens generated',
+    ['model_name']
+)
+
+ACTIVE_CONNECTIONS = Gauge(
+    'model_active_connections',
+    'Number of active connections',
+    ['model_name']
+)
+
+GPU_MEMORY_USED = Gauge(
+    'gpu_memory_used_bytes',
+    'GPU memory used',
+    ['gpu_id']
+)
+
+class ModelMonitor:
+    def __init__(self, model_name='nxt-1-astro'):
+        self.model_name = model_name
+        self.start_http_server(8000)  # Prometheus metrics endpoint
+        logger.info(f"Monitoring initialized for {model_name}")
+    
+    def track_request(self, endpoint, status='success'):
+        """Track request metrics"""
+        REQUEST_COUNT.labels(
+            model_name=self.model_name,
+            endpoint=endpoint,
+            status=status
+        ).inc()
+    
+    def track_latency(self, endpoint, duration):
+        """Track request latency"""
+        REQUEST_LATENCY.labels(
+            model_name=self.model_name,
+            endpoint=endpoint
+        ).observe(duration)
+    
+    def track_tokens(self, num_tokens):
+        """Track tokens generated"""
+        TOKENS_GENERATED.labels(
+            model_name=self.model_name
+        ).inc(num_tokens)
+    
+    def update_connections(self, count):
+        """Update active connections count"""
+        ACTIVE_CONNECTIONS.labels(
+            model_name=self.model_name
+        ).set(count)
+    
+    def update_gpu_memory(self, gpu_id, memory_bytes):
+        """Update GPU memory usage"""
+        GPU_MEMORY_USED.labels(gpu_id=gpu_id).set(memory_bytes)
+    
+    def log_request(self, request_data, response_data, duration):
+        """Log detailed request information"""
+        log_entry = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'model': self.model_name,
+            'request': {
+                'prompt_length': len(request_data.get('prompt', '')),
+                'max_tokens': request_data.get('max_tokens', 100),
+                'temperature': request_data.get('temperature', 0.7)
+            },
+            'response': {
+                'tokens_generated': response_data.get('tokens_generated', 0),
+                'finish_reason': response_data.get('finish_reason', 'unknown')
+            },
+            'duration_seconds': duration,
+            'status': 'success'
+        }
+        logger.info(json.dumps(log_entry))
+
+# Usage example
+monitor = ModelMonitor('nxt-1-astro')
+
+# Track a request
+start_time = time.time()
+try:
+    # ... process request ...
+    duration = time.time() - start_time
+    
+    monitor.track_request('/generate', 'success')
+    monitor.track_latency('/generate', duration)
+    monitor.track_tokens(150)
+    monitor.log_request(
+        {'prompt': 'Hello', 'max_tokens': 100},
+        {'tokens_generated': 150, 'finish_reason': 'stop'},
+        duration
+    )
+except Exception as e:
+    monitor.track_request('/generate', 'error')
+    logger.error(f"Request failed: {str(e)}")`;
+
+  const grafanaCode = `# Grafana Dashboard Configuration (JSON)
+{
+  "dashboard": {
+    "title": "NXT-1 Astro Model Monitoring",
+    "panels": [
+      {
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(model_requests_total[5m])",
+            "legendFormat": "{{endpoint}} - {{status}}"
+          }
+        ]
+      },
+      {
+        "title": "Request Latency (P95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(model_request_latency_seconds_bucket[5m]))",
+            "legendFormat": "{{endpoint}}"
+          }
+        ]
+      },
+      {
+        "title": "Tokens Generated per Second",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(model_tokens_generated_total[1m])"
+          }
+        ]
+      },
+      {
+        "title": "GPU Memory Usage",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "gpu_memory_used_bytes / 1024 / 1024 / 1024",
+            "legendFormat": "GPU {{gpu_id}}"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(model_requests_total{status=\\"error\\"}[5m]) / rate(model_requests_total[5m]) * 100"
+          }
+        ]
+      },
+      {
+        "title": "Active Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "model_active_connections"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+# Alerting Rules (Prometheus)
+groups:
+  - name: model_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(model_requests_total{status="error"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+      
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(model_request_latency_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency detected"
+      
+      - alert: GPUMemoryHigh
+        expr: gpu_memory_used_bytes / 1024 / 1024 / 1024 > 20
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU memory usage is high"`;
+
+  return (
+    <section id="monitoring" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-emerald-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Monitoring & Observability 📊
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Track performa model, log aktivitas, dan setup alerting untuk production
+          </p>
+        </motion.div>
+
+        {/* Monitoring components */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
+          {[
+            { title: 'Metrics', desc: 'Prometheus + Grafana', icon: '📈', color: 'emerald' },
+            { title: 'Logging', desc: 'Structured JSON logs', icon: '📝', color: 'blue' },
+            { title: 'Tracing', desc: 'Distributed tracing', icon: '🔍', color: 'purple' },
+            { title: 'Alerting', desc: 'Real-time notifications', icon: '🚨', color: 'red' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-5 rounded-xl bg-gray-900/50 border border-gray-800/50"
+            >
+              <div className="text-3xl mb-2">{item.icon}</div>
+              <h3 className={`text-${item.color}-400 font-semibold text-sm mb-1`}>{item.title}</h3>
+              <p className="text-gray-400 text-xs">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-emerald-400" />
+              Python Monitoring Implementation
+            </h3>
+            <CodeBlock code={monitoringCode} title="monitoring.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Server className="w-5 h-5 text-blue-400" />
+              Grafana Dashboard & Alerts
+            </h3>
+            <CodeBlock code={grafanaCode} title="grafana_dashboard.json" />
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============ OPTIMIZATION SECTION ============
+function OptimizationSection() {
+  const inferenceCode = `# Inference Optimization Techniques
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import time
+
+class InferenceOptimizer:
+    def __init__(self, model_name):
+        self.model_name = model_name
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        
+    def load_optimized_model(self):
+        """Load model with multiple optimizations"""
+        model = AutoModelForCausalLM.from_pretrained(
+            self.model_name,
+            torch_dtype=torch.float16,
+            device_map="auto",
+            low_cpu_mem_usage=True,
+            use_cache=True  # Enable KV cache
+        )
+        
+        # Compile model for faster inference (PyTorch 2.0+)
+        if hasattr(torch, 'compile'):
+            model = torch.compile(model, mode="reduce-overhead")
+        
+        return model
+    
+    def batch_inference(self, model, prompts, batch_size=4):
+        """Process multiple prompts in batches"""
+        results = []
+        
+        for i in range(0, len(prompts), batch_size):
+            batch_prompts = prompts[i:i + batch_size]
+            
+            # Tokenize batch
+            inputs = self.tokenizer(
+                batch_prompts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True
+            ).to(model.device)
+            
+            # Generate batch
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    max_new_tokens=100,
+                    temperature=0.7,
+                    do_sample=True,
+                    use_cache=True
+                )
+            
+            # Decode batch
+            batch_results = self.tokenizer.batch_decode(
+                outputs,
+                skip_special_tokens=True
+            )
+            results.extend(batch_results)
+        
+        return results
+    
+    def speculative_decoding(self, model, draft_model, prompt, max_tokens=100):
+        """Speculative decoding for faster generation"""
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(model.device)
+        
+        generated_tokens = []
+        past_key_values = None
+        
+        for _ in range(max_tokens):
+            # Draft model generates multiple tokens quickly
+            draft_outputs = draft_model.generate(
+                **inputs,
+                max_new_tokens=5,
+                do_sample=False,
+                use_cache=True
+            )
+            
+            # Main model verifies all draft tokens at once
+            draft_text = self.tokenizer.decode(draft_outputs[0], skip_special_tokens=True)
+            verify_inputs = self.tokenizer(draft_text, return_tensors="pt").to(model.device)
+            
+            with torch.no_grad():
+                verify_outputs = model(
+                    **verify_inputs,
+                    use_cache=True,
+                    return_dict=True
+                )
+            
+            # Accept tokens that match
+            # (simplified - real implementation needs more logic)
+            next_token = verify_outputs.logits[:, -1, :].argmax(dim=-1)
+            generated_tokens.append(next_token.item())
+            
+            # Update inputs for next iteration
+            inputs = {
+                'input_ids': next_token.unsqueeze(0),
+                'past_key_values': verify_outputs.past_key_values
+            }
+        
+        return self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+
+# KV Cache optimization
+class KVCacheOptimizer:
+    def __init__(self, max_batch_size=32, max_seq_len=2048):
+        self.max_batch_size = max_batch_size
+        self.max_seq_len = max_seq_len
+        self.cache = {}
+    
+    def get_cache(self, batch_size, seq_len):
+        """Get or create KV cache"""
+        key = (batch_size, seq_len)
+        if key not in self.cache:
+            self.cache[key] = {
+                'past_key_values': None,
+                'attention_mask': torch.ones(
+                    (batch_size, seq_len),
+                    dtype=torch.long
+                )
+            }
+        return self.cache[key]
+
+# Usage
+optimizer = InferenceOptimizer("meta-llama/Llama-2-7b-hf")
+model = optimizer.load_optimized_model()
+
+# Batch inference
+prompts = ["Hello", "How are you", "What is AI", "Tell me a story"]
+results = optimizer.batch_inference(model, prompts, batch_size=4)
+
+# Measure performance
+start_time = time.time()
+results = optimizer.batch_inference(model, prompts * 10, batch_size=8)
+duration = time.time() - start_time
+print(f"Generated {len(results)} responses in {duration:.2f}s")
+print(f"Throughput: {len(results)/duration:.2f} requests/sec")`;
+
+  const memoryCode = `# Memory Optimization Techniques
+import torch
+import gc
+from transformers import AutoModelForCausalLM
+
+class MemoryOptimizer:
+    def __init__(self):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    def quantize_model(self, model_name, bits=4):
+        """Quantize model to reduce memory footprint"""
+        from transformers import BitsAndBytesConfig
+        
+        if bits == 4:
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True
+            )
+        elif bits == 8:
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_threshold=6.0
+            )
+        
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=quantization_config,
+            device_map="auto"
+        )
+        
+        return model
+    
+    def prune_model(self, model, pruning_ratio=0.3):
+        """Prune model weights to reduce size"""
+        import torch.nn.utils.prune as prune
+        
+        for name, module in model.named_modules():
+            if isinstance(module, torch.nn.Linear):
+                if 'q_proj' in name or 'v_proj' in name:
+                    prune.l1_unstructured(
+                        module,
+                        name='weight',
+                        amount=pruning_ratio
+                    )
+                    prune.remove(module, 'weight')
+        
+        return model
+    
+    def offload_to_cpu(self, model):
+        """Offload parts of model to CPU to save GPU memory"""
+        from accelerate import dispatch_model, infer_auto_device_map
+        
+        device_map = infer_auto_device_map(
+            model,
+            max_memory={
+                0: "10GiB",  # GPU 0
+                "cpu": "20GiB"  # CPU RAM
+            }
+        )
+        
+        model = dispatch_model(model, device_map=device_map)
+        return model
+    
+    def clear_memory(self):
+        """Clear GPU and CPU memory"""
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+    
+    def get_memory_usage(self):
+        """Get current memory usage"""
+        if torch.cuda.is_available():
+            allocated = torch.cuda.memory_allocated() / 1024**3
+            reserved = torch.cuda.memory_reserved() / 1024**3
+            return {
+                'allocated_gb': allocated,
+                'reserved_gb': reserved,
+                'free_gb': torch.cuda.get_device_properties(0).total_memory / 1024**3 - reserved
+            }
+        return None
+
+# Model distillation
+class ModelDistillation:
+    def __init__(self, teacher_model, student_model):
+        self.teacher = teacher_model
+        self.student = student_model
+        self.temperature = 2.0
+        self.alpha = 0.5
+    
+    def distillation_loss(self, student_outputs, teacher_outputs, labels):
+        """Calculate distillation loss"""
+        import torch.nn.functional as F
+        
+        # Soft targets from teacher
+        teacher_probs = F.softmax(
+            teacher_outputs.logits / self.temperature,
+            dim=-1
+        )
+        
+        # Student predictions
+        student_log_probs = F.log_softmax(
+            student_outputs.logits / self.temperature,
+            dim=-1
+        )
+        
+        # KL divergence loss
+        distillation_loss = F.kl_div(
+            student_log_probs,
+            teacher_probs,
+            reduction='batchmean'
+        ) * (self.temperature ** 2)
+        
+        # Hard target loss (cross entropy)
+        import torch.nn as nn
+        ce_loss = nn.CrossEntropyLoss()(
+            student_outputs.logits.view(-1, student_outputs.logits.size(-1)),
+            labels.view(-1)
+        )
+        
+        # Combined loss
+        total_loss = self.alpha * distillation_loss + (1 - self.alpha) * ce_loss
+        
+        return total_loss
+
+# Usage
+optimizer = MemoryOptimizer()
+
+# Quantize model
+model_4bit = optimizer.quantize_model("meta-llama/Llama-2-7b-hf", bits=4)
+print(f"Memory after 4-bit quantization: {optimizer.get_memory_usage()}")
+
+# Clear memory
+optimizer.clear_memory()
+
+# Prune model
+model_pruned = optimizer.prune_model(model_4bit, pruning_ratio=0.3)
+print(f"Memory after pruning: {optimizer.get_memory_usage()}")
+
+# Offload to CPU if needed
+model_offloaded = optimizer.offload_to_cpu(model_pruned)
+
+# Distillation
+teacher = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-13b-hf")
+student = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-hf")
+distiller = ModelDistillation(teacher, student)`;
+
+  const costCode = `# Cost Optimization Strategies
+import boto3
+from datetime import datetime, timedelta
+import json
+
+class CostOptimizer:
+    def __init__(self):
+        self.ec2 = boto3.client('ec2')
+        self.autoscaling = boto3.client('autoscaling')
+        self.cloudwatch = boto3.client('cloudwatch')
+    
+    def auto_scaling_config(self):
+        """Configure auto-scaling based on demand"""
+        config = {
+            'min_instances': 1,
+            'max_instances': 10,
+            'desired_capacity': 2,
+            'scaling_policies': [
+                {
+                    'name': 'ScaleUpOnHighUtilization',
+                    'metric': 'GPUUtilization',
+                    'threshold': 80,
+                    'adjustment': 2,
+                    'cooldown': 300
+                },
+                {
+                    'name': 'ScaleDownOnLowUtilization',
+                    'metric': 'GPUUtilization',
+                    'threshold': 30,
+                    'adjustment': -1,
+                    'cooldown': 600
+                },
+                {
+                    'name': 'ScaleUpOnHighQueue',
+                    'metric': 'RequestQueueLength',
+                    'threshold': 100,
+                    'adjustment': 3,
+                    'cooldown': 180
+                }
+            ]
+        }
+        return config
+    
+    def spot_instance_strategy(self):
+        """Use spot instances for cost savings"""
+        strategy = {
+            'on_demand_base': 1,  # Minimum on-demand instances
+            'spot_allocation': 80,  # 80% spot instances
+            'spot_price_multiplier': 1.2,  # Bid 20% above market
+            'instance_types': [
+                'g5.xlarge',   # A10G GPU
+                'g5.2xlarge',  # A10G GPU
+                'g4dn.xlarge', # T4 GPU
+            ],
+            'fallback_to_on_demand': True,
+            'interruption_handling': 'terminate'  # or 'hibernate'
+        }
+        return strategy
+    
+    def calculate_cost(self, usage_data):
+        """Calculate and optimize costs"""
+        costs = {
+            'gpu_hours': 0,
+            'data_transfer': 0,
+            'storage': 0,
+            'total': 0
+        }
+        
+        # GPU compute costs
+        gpu_cost_per_hour = {
+            'T4': 0.526,
+            'V100': 3.06,
+            'A10G': 1.006,
+            'A100': 3.67,
+            'H100': 5.00
+        }
+        
+        for instance in usage_data.get('instances', []):
+            gpu_type = instance.get('gpu_type', 'T4')
+            hours = instance.get('usage_hours', 0)
+            costs['gpu_hours'] += hours * gpu_cost_per_hour.get(gpu_type, 0.5)
+        
+        # Data transfer costs
+        data_gb = usage_data.get('data_transfer_gb', 0)
+        costs['data_transfer'] = data_gb * 0.09  # $0.09 per GB
+        
+        # Storage costs
+        storage_gb = usage_data.get('storage_gb', 0)
+        costs['storage'] = storage_gb * 0.10  # $0.10 per GB/month
+        
+        costs['total'] = sum(costs.values())
+        
+        return costs
+    
+    def optimize_deployment(self, current_config):
+        """Suggest optimizations for current deployment"""
+        suggestions = []
+        
+        # Check if using spot instances
+        if current_config.get('spot_percentage', 0) < 50:
+            suggestions.append({
+                'type': 'spot_instances',
+                'message': 'Increase spot instance usage to 70-80% for 60-70% cost savings',
+                'potential_savings': '60-70%'
+            })
+        
+        # Check auto-scaling
+        if not current_config.get('auto_scaling_enabled', False):
+            suggestions.append({
+                'type': 'auto_scaling',
+                'message': 'Enable auto-scaling to match demand and reduce idle time',
+                'potential_savings': '30-50%'
+            })
+        
+        # Check quantization
+        if current_config.get('quantization', 'none') == 'none':
+            suggestions.append({
+                'type': 'quantization',
+                'message': 'Use 4-bit quantization to reduce GPU memory by 75%',
+                'potential_savings': '40-60%'
+            })
+        
+        # Check batching
+        if current_config.get('batch_size', 1) < 4:
+            suggestions.append({
+                'type': 'batching',
+                'message': 'Increase batch size to improve GPU utilization',
+                'potential_savings': '20-40%'
+            })
+        
+        return suggestions
+
+# Serverless deployment option
+class ServerlessDeployment:
+    def __init__(self):
+        self.lambda_client = boto3.client('lambda')
+    
+    def deploy_to_lambda(self, model_path):
+        """Deploy model to AWS Lambda (for small models)"""
+        config = {
+            'FunctionName': 'nxt-1-astro-inference',
+            'Runtime': 'python3.9',
+            'Handler': 'lambda_function.lambda_handler',
+            'MemorySize': 10240,  # 10GB
+            'Timeout': 900,  # 15 minutes
+            'Environment': {
+                'Variables': {
+                    'MODEL_PATH': model_path
+                }
+            }
+        }
+        return config
+    
+    def estimate_serverless_cost(self, requests_per_month, avg_duration_ms):
+        """Estimate serverless costs"""
+        # Lambda pricing
+        requests_cost = requests_per_month * 0.0000002  # $0.20 per 1M requests
+        duration_cost = (requests_per_month * avg_duration_ms / 1000) * 0.0000166667  # $0.0000166667 per GB-second
+        
+        # Assuming 10GB memory
+        total_cost = requests_cost + (duration_cost * 10)
+        
+        return {
+            'requests_cost': requests_cost,
+            'duration_cost': duration_cost * 10,
+            'total_monthly': total_cost,
+            'cost_per_request': total_cost / requests_per_month
+        }
+
+# Usage
+optimizer = CostOptimizer()
+
+# Calculate current costs
+usage_data = {
+    'instances': [
+        {'gpu_type': 'A10G', 'usage_hours': 720},  # 1 month
+        {'gpu_type': 'A10G', 'usage_hours': 720}
+    ],
+    'data_transfer_gb': 500,
+    'storage_gb': 100
+}
+
+current_costs = optimizer.calculate_cost(usage_data)
+print(f"Current monthly cost: \${current_costs['total']:.2f}")
+
+# Get optimization suggestions
+current_config = {
+    'spot_percentage': 20,
+    'auto_scaling_enabled': False,
+    'quantization': 'none',
+    'batch_size': 1
+}
+
+suggestions = optimizer.optimize_deployment(current_config)
+for suggestion in suggestions:
+    print(f"\\n💡 {suggestion['message']}")
+    print(f"   Potential savings: {suggestion['potential_savings']}")
+
+# Serverless option
+serverless = ServerlessDeployment()
+serverless_cost = serverless.estimate_serverless_cost(
+    requests_per_month=100000,
+    avg_duration_ms=2000
+)
+print(f"\\nServerless option: \${serverless_cost['total_monthly']:.2f}/month")`;
+
+  return (
+    <section id="optimization" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-orange-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Optimasi Performa & Biaya ⚡
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Teknik optimasi untuk inference cepat, efisiensi memory, dan penghematan biaya
+          </p>
+        </motion.div>
+
+        {/* Optimization categories */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
+          {[
+            { title: 'Inference', desc: 'Batching, KV Cache, Speculative Decoding', icon: '🚀', color: 'orange' },
+            { title: 'Memory', desc: 'Quantization, Pruning, Offloading', icon: '💾', color: 'blue' },
+            { title: 'Latency', desc: 'Compilation, Caching, Streaming', icon: '⚡', color: 'yellow' },
+            { title: 'Cost', desc: 'Auto-scaling, Spot instances, Serverless', icon: '💰', color: 'green' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-5 rounded-xl bg-gray-900/50 border border-gray-800/50"
+            >
+              <div className="text-3xl mb-2">{item.icon}</div>
+              <h3 className={`text-${item.color}-400 font-semibold text-sm mb-1`}>{item.title}</h3>
+              <p className="text-gray-400 text-xs">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="space-y-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-orange-400" />
+              Inference Optimization
+            </h3>
+            <CodeBlock code={inferenceCode} title="inference_optimization.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Cpu className="w-5 h-5 text-blue-400" />
+              Memory Optimization & Distillation
+            </h3>
+            <CodeBlock code={memoryCode} title="memory_optimization.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-green-400" />
+              Cost Optimization Strategies
+            </h3>
+            <CodeBlock code={costCode} title="cost_optimization.py" />
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ============ FOOTER ============
 function Footer() {
   return (
@@ -4768,6 +5639,8 @@ export default function App() {
       <RLHFSection />
       <ResourcesSection />
       <DeploymentSection />
+      <MonitoringSection />
+      <OptimizationSection />
       <RoadmapSection />
       <FeaturesSection />
       <QuickStartSection />
