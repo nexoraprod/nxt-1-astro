@@ -120,7 +120,7 @@ nxt-1-astro/
 
 1. **Clone repository**
 ```bash
-git clone https://github.com/yourusername/nxt-1-astro.git
+git clone https://github.com/nexoraprod/nxt-1-astro.git
 cd nxt-1-astro
 ```
 
@@ -382,7 +382,7 @@ nxt-1-astro/
 Contributions are welcome! Here's how you can help:
 
 ### Report Issues
-- Found a bug? [Open an issue](https://github.com/yourusername/nxt-1-astro/issues)
+- Found a bug? [Open an issue](https://github.com/nexoraprod/nxt-1-astro/issues)
 - Have a suggestion? We'd love to hear it!
 
 ### Submit Changes
@@ -428,12 +428,12 @@ Untuk panduan lengkap deployment dari GitHub repository, lihat:
 
 ```bash
 # 1. Fork & clone repository
-git clone https://github.com/YOUR_USERNAME/nxt-1-astro.git
+git clone https://github.com/nexoraprod/nxt-1-astro.git
 cd nxt-1-astro
 
 # 2. Build & push ke Docker Hub
-docker build -t YOUR_USERNAME/nxt-1-astro:latest .
-docker push YOUR_USERNAME/nxt-1-astro:latest
+docker build -t nexoraprod/nxt-1-astro:latest .
+docker push nexoraprod/nxt-1-astro:latest
 
 # 3. Deploy ke server
 ssh YOUR_SERVER "cd /opt/nxt-1-astro && docker-compose pull && docker-compose up -d"
@@ -464,7 +464,7 @@ Setiap push ke `main` branch akan auto deploy! 🚀
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/nxt-1-astro&type=Date)](https://star-history.com/#yourusername/nxt-1-astro&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=nexoraprod/nxt-1-astro&type=Date)](https://star-history.com/#nexoraprod/nxt-1-astro&Date)
 
 ---
 
