@@ -14,10 +14,11 @@ function Navigation() {
   const links = [
     { href: '#overview', label: 'Overview' },
     { href: '#architecture', label: 'Arsitektur' },
+    { href: '#tokenization', label: 'Tokenisasi' },
     { href: '#pipeline', label: 'Pipeline' },
-    { href: '#tools', label: 'Tools' },
-    { href: '#resources', label: 'Sumber Daya' },
-    { href: '#getting-started', label: 'Mulai' },
+    { href: '#training', label: 'Training' },
+    { href: '#rlhf', label: 'RLHF' },
+    { href: '#deployment', label: 'Deploy' },
     { href: '#learning', label: 'Belajar' },
   ];
 
@@ -970,6 +971,923 @@ function LearningSection() {
   );
 }
 
+// ============ DEEP DIVE: TOKENIZATION ============
+function TokenizationSection() {
+  const [activeTab, setActiveTab] = useState<'bpe' | 'sentencepiece' | 'example'>('bpe');
+
+  const bpeCode = `from tokenizers import Tokenizer
+from tokenizers.models import BPE
+from tokenizers.trainers import BpeTrainer
+from tokenizers.pre_tokenizers import Whitespace
+
+# Inisialisasi tokenizer BPE
+tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
+tokenizer.pre_tokenizer = Whitespace()
+
+# Trainer dengan vocab size 50,000
+trainer = BpeTrainer(
+    vocab_size=50000,
+    min_frequency=2,
+    special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"]
+)
+
+# Train dari file-file teks
+files = ["data/train.txt", "data/valid.txt"]
+tokenizer.train(files, trainer)
+
+# Simpan tokenizer
+tokenizer.save("tokenizer.json")
+
+# Gunakan
+encoding = tokenizer.encode("Hello, world!")
+print(encoding.tokens)  # ['Hello', ',', 'world', '!']
+print(encoding.ids)     # [1234, 5, 6789, 2]`;
+
+  const sentencepieceCode = `import sentencepiece as spm
+
+# Train SentencePiece model
+spm.SentencePieceTrainer.train(
+    input='data/corpus.txt',
+    model_prefix='tokenizer',
+    vocab_size=32000,
+    character_coverage=0.9995,
+    model_type='bpe',  # atau 'unigram', 'char', 'word'
+    num_threads=8,
+    split_digits=True,
+    byte_fallback=True,
+)
+
+# Load dan gunakan
+sp = spm.SentencePieceProcessor(model_file='tokenizer.model')
+
+# Encode
+text = "Artificial intelligence is transforming the world"
+pieces = sp.encode(text, out_type=str)
+ids = sp.encode(text, out_type=int)
+
+print(f"Text: {text}")
+print(f"Pieces: {pieces}")
+print(f"IDs: {ids}")
+
+# Decode
+decoded = sp.decode(ids)
+print(f"Decoded: {decoded}")`;
+
+  const exampleCode = `# Contoh: Tokenisasi untuk training GPT
+from transformers import AutoTokenizer
+import torch
+
+# Load tokenizer pretrained
+tokenizer = AutoTokenizer.from_pretrained("gpt2")
+
+# Tambahkan special tokens
+special_tokens = {"pad_token": "<|pad|>"}
+tokenizer.add_special_tokens(special_tokens)
+
+# Tokenisasi batch
+texts = [
+    "The future of AI is bright",
+    "Large language models can understand context",
+    "Training requires massive compute"
+]
+
+# Encode dengan padding
+encodings = tokenizer(
+    texts,
+    padding=True,
+    truncation=True,
+    max_length=512,
+    return_tensors="pt"
+)
+
+print(f"Input IDs shape: {encodings['input_ids'].shape}")
+print(f"Attention mask shape: {encodings['attention_mask'].shape}")
+
+# Decode kembali
+for i, text in enumerate(texts):
+    decoded = tokenizer.decode(encodings['input_ids'][i])
+    print(f"Original: {text}")
+    print(f"Decoded:  {decoded}")`;
+
+  const tabs = [
+    { id: 'bpe', label: 'BPE Tokenizer', icon: Code2 },
+    { id: 'sentencepiece', label: 'SentencePiece', icon: Layers },
+    { id: 'example', label: 'Contoh Praktis', icon: Zap },
+  ];
+
+  return (
+    <section id="tokenization" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-indigo-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Deep Dive: Tokenization 🔤
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Tokenisasi adalah fondasi — mengubah teks mentah menjadi representasi numerik yang bisa diproses model
+          </p>
+        </motion.div>
+
+        {/* Tabs */}
+        <div className="flex flex-wrap gap-2 mb-6 justify-center">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                activeTab === tab.id
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              <span className="text-sm font-medium">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Code blocks */}
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {activeTab === 'bpe' && <CodeBlock code={bpeCode} title="bpe_tokenizer.py" />}
+          {activeTab === 'sentencepiece' && <CodeBlock code={sentencepieceCode} title="sentencepiece_tokenizer.py" />}
+          {activeTab === 'example' && <CodeBlock code={exampleCode} title="tokenization_example.py" />}
+        </motion.div>
+
+        {/* Explanation cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+          {[
+            { title: 'BPE (Byte-Pair Encoding)', desc: 'Menggabungkan karakter yang sering muncul bersama menjadi subword', icon: '🔗' },
+            { title: 'SentencePiece', desc: 'Language-agnostic, bekerja langsung pada raw text tanpa pre-tokenization', icon: '🌐' },
+            { title: 'Vocabulary Size', desc: 'Trade-off: vocab besar = lebih efisien, vocab kecil = lebih fleksibel', icon: '📊' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-5 rounded-xl bg-gray-900/50 border border-gray-800/50"
+            >
+              <div className="text-2xl mb-2">{item.icon}</div>
+              <h3 className="text-white font-semibold text-sm mb-1">{item.title}</h3>
+              <p className="text-gray-400 text-xs">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============ TRAINING LOOP SECTION ============
+function TrainingLoopSection() {
+  const trainingCode = `import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+import wandb
+
+class TextDataset(Dataset):
+    def __init__(self, data, seq_length):
+        self.data = data
+        self.seq_length = seq_length
+    
+    def __len__(self):
+        return len(self.data) - self.seq_length
+    
+    def __getitem__(self, idx):
+        x = self.data[idx:idx + self.seq_length]
+        y = self.data[idx + 1:idx + self.seq_length + 1]
+        return torch.tensor(x), torch.tensor(y)
+
+def train_model(model, train_loader, val_loader, config):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    
+    # Optimizer dengan weight decay
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=config['learning_rate'],
+        weight_decay=config['weight_decay'],
+        betas=(0.9, 0.95)
+    )
+    
+    # Learning rate scheduler
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        T_max=config['max_steps']
+    )
+    
+    # Mixed precision training
+    scaler = torch.cuda.amp.GradScaler()
+    
+    # Initialize wandb
+    wandb.init(project="gpt-training", config=config)
+    
+    global_step = 0
+    best_val_loss = float('inf')
+    
+    for epoch in range(config['epochs']):
+        model.train()
+        train_loss = 0
+        
+        for batch_idx, (inputs, targets) in enumerate(tqdm(train_loader)):
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+            
+            # Forward pass dengan mixed precision
+            with torch.cuda.amp.autocast():
+                logits, loss = model(inputs, targets)
+                loss = loss / config['gradient_accumulation_steps']
+            
+            # Backward pass
+            scaler.scale(loss).backward()
+            
+            # Gradient accumulation
+            if (batch_idx + 1) % config['gradient_accumulation_steps'] == 0:
+                # Gradient clipping
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
+                scheduler.step()
+                
+                global_step += 1
+                
+                # Logging
+                if global_step % config['log_interval'] == 0:
+                    wandb.log({
+                        'train/loss': loss.item() * config['gradient_accumulation_steps'],
+                        'train/lr': scheduler.get_last_lr()[0],
+                        'train/step': global_step
+                    })
+                
+                # Validation
+                if global_step % config['eval_interval'] == 0:
+                    val_loss = evaluate(model, val_loader, device)
+                    wandb.log({'val/loss': val_loss, 'step': global_step})
+                    
+                    # Save best model
+                    if val_loss < best_val_loss:
+                        best_val_loss = val_loss
+                        torch.save(model.state_dict(), 'best_model.pt')
+                        print(f"✨ New best model! Val loss: {val_loss:.4f}")
+            
+            train_loss += loss.item()
+        
+        avg_train_loss = train_loss / len(train_loader)
+        print(f"Epoch {epoch+1}/{config['epochs']} - Train Loss: {avg_train_loss:.4f}")
+
+def evaluate(model, val_loader, device):
+    model.eval()
+    total_loss = 0
+    
+    with torch.no_grad():
+        for inputs, targets in val_loader:
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+            
+            with torch.cuda.amp.autocast():
+                _, loss = model(inputs, targets)
+            
+            total_loss += loss.item()
+    
+    return total_loss / len(val_loader)
+
+# Configuration
+config = {
+    'learning_rate': 3e-4,
+    'weight_decay': 0.1,
+    'epochs': 10,
+    'batch_size': 32,
+    'gradient_accumulation_steps': 4,
+    'max_steps': 100000,
+    'log_interval': 10,
+    'eval_interval': 500,
+}
+
+# Run training
+# train_model(model, train_loader, val_loader, config)`;
+
+  return (
+    <section id="training" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Training Loop & Optimization ⚡
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Implementasi lengkap training loop dengan mixed precision, gradient accumulation, dan distributed training
+          </p>
+        </motion.div>
+
+        <CodeBlock code={trainingCode} title="training_loop.py" />
+
+        {/* Key concepts */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+          {[
+            { title: 'Mixed Precision', desc: 'FP16/BF16 untuk mempercepat training 2-3x', icon: '⚡', color: 'yellow' },
+            { title: 'Gradient Accumulation', desc: 'Simulasi batch size besar dengan GPU memory terbatas', icon: '📦', color: 'blue' },
+            { title: 'Gradient Clipping', desc: 'Mencegah exploding gradients', icon: '✂️', color: 'red' },
+            { title: 'LR Scheduler', desc: 'Cosine annealing untuk konvergensi optimal', icon: '📈', color: 'green' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-4 rounded-xl bg-gray-900/50 border border-gray-800/50"
+            >
+              <div className="text-2xl mb-2">{item.icon}</div>
+              <h3 className="text-white font-semibold text-sm mb-1">{item.title}</h3>
+              <p className="text-gray-400 text-xs">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============ DISTRIBUTED TRAINING SECTION ============
+function DistributedTrainingSection() {
+  const deepspeedCode = `# DeepSpeed configuration (ds_config.json)
+{
+  "train_batch_size": 256,
+  "gradient_accumulation_steps": 4,
+  "fp16": {
+    "enabled": true,
+    "loss_scale": 0,
+    "loss_scale_window": 1000
+  },
+  "zero_optimization": {
+    "stage": 3,
+    "offload_optimizer": {
+      "device": "cpu",
+      "pin_memory": true
+    },
+    "offload_param": {
+      "device": "cpu",
+      "pin_memory": true
+    },
+    "overlap_comm": true,
+    "contiguous_gradients": true
+  },
+  "optimizer": {
+    "type": "AdamW",
+    "params": {
+      "lr": 3e-4,
+      "betas": [0.9, 0.95],
+      "eps": 1e-8,
+      "weight_decay": 0.1
+    }
+  },
+  "scheduler": {
+    "type": "WarmupDecayLR",
+    "params": {
+      "warmup_min_lr": 0,
+      "warmup_max_lr": 3e-4,
+      "warmup_num_steps": 2000,
+      "total_num_steps": 100000
+    }
+  }
+}`;
+
+  const launchCode = `# Launch distributed training dengan DeepSpeed
+# Untuk 8 GPU dalam 1 node
+deepspeed --num_gpus=8 train.py \\
+    --deepspeed ds_config.json \\
+    --model_name gpt-large \\
+    --train_data data/train \\
+    --output_dir checkpoints/
+
+# Untuk multi-node (4 nodes, masing-masing 8 GPU)
+deepspeed --num_nodes=4 --num_gpus=8 \\
+    --hostfile hostfile.txt \\
+    train.py --deepspeed ds_config.json
+
+# hostfile.txt berisi:
+# node1 slots=8
+# node2 slots=8
+# node3 slots=8
+# node4 slots=8`;
+
+  const fsdpCode = `# PyTorch FSDP (Fully Sharded Data Parallel)
+import torch
+import torch.distributed as dist
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import ShardingStrategy
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+
+# Initialize distributed
+dist.init_process_group(backend='nccl')
+local_rank = int(os.environ['LOCAL_RANK'])
+torch.cuda.set_device(local_rank)
+
+# Auto wrap policy
+transformer_layer = TransformerBlock
+auto_wrap_policy = partial(
+    transformer_auto_wrap_policy,
+    transformer_layer_cls={transformer_layer}
+)
+
+# Wrap model dengan FSDP
+model = FSDP(
+    model,
+    auto_wrap_policy=auto_wrap_policy,
+    sharding_strategy=ShardingStrategy.FULL_SHARD,
+    mixed_precision=MixedPrecision(
+        param_dtype=torch.float16,
+        reduce_dtype=torch.float16,
+        buffer_dtype=torch.float16
+    ),
+    backward_prefetch=BackwardPrefetch.BACKWARD_PRE,
+    forward_prefetch=True,
+    limit_all_gathers=True,
+)
+
+# Launch dengan torchrun
+# torchrun --nproc_per_node=8 train_fsdp.py`;
+
+  return (
+    <section id="distributed" className="py-24 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Distributed Training 🌐
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Scale training ke ratusan GPU dengan DeepSpeed ZeRO dan PyTorch FSDP
+          </p>
+        </motion.div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Server className="w-5 h-5 text-purple-400" />
+              DeepSpeed ZeRO-3
+            </h3>
+            <CodeBlock code={deepspeedCode} title="ds_config.json" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-cyan-400" />
+              PyTorch FSDP
+            </h3>
+            <CodeBlock code={fsdpCode} title="train_fsdp.py" />
+          </motion.div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-6"
+        >
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Rocket className="w-5 h-5 text-yellow-400" />
+            Launch Commands
+          </h3>
+          <CodeBlock code={launchCode} title="launch_commands.sh" />
+        </motion.div>
+
+        {/* Comparison table */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-8 overflow-x-auto"
+        >
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-800">
+                <th className="py-3 px-4 text-sm font-semibold text-gray-400">Feature</th>
+                <th className="py-3 px-4 text-sm font-semibold text-gray-400">DeepSpeed ZeRO</th>
+                <th className="py-3 px-4 text-sm font-semibold text-gray-400">PyTorch FSDP</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm">
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-gray-300">Memory Efficiency</td>
+                <td className="py-3 px-4 text-green-400">Excellent (ZeRO-3)</td>
+                <td className="py-3 px-4 text-green-400">Excellent</td>
+              </tr>
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-gray-300">Ease of Use</td>
+                <td className="py-3 px-4 text-yellow-400">Medium</td>
+                <td className="py-3 px-4 text-green-400">Easy (native PyTorch)</td>
+              </tr>
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-gray-300">CPU Offloading</td>
+                <td className="py-3 px-4 text-green-400">Yes</td>
+                <td className="py-3 px-4 text-yellow-400">Limited</td>
+              </tr>
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-gray-300">Multi-Node</td>
+                <td className="py-3 px-4 text-green-400">Excellent</td>
+                <td className="py-3 px-4 text-green-400">Good</td>
+              </tr>
+            </tbody>
+          </table>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+// ============ RLHF SECTION ============
+function RLHFSection() {
+  const rlhfCode = `from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
+from trl.core import query, respond
+from transformers import AutoTokenizer
+import torch
+
+# Load model dan tokenizer
+model_name = "gpt2"
+model = AutoModelForCausalLMWithValueHead.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Reward model (sudah ditrain sebelumnya)
+reward_model = load_reward_model("reward_model.pt")
+
+# PPO Configuration
+config = PPOConfig(
+    model_name=model_name,
+    learning_rate=1e-5,
+    batch_size=64,
+    mini_batch_size=16,
+    ppo_epochs=4,
+)
+
+# Initialize PPO trainer
+ppo_trainer = PPOTrainer(config, model, ref_model=None, tokenizer=tokenizer)
+
+# Training loop
+for epoch in range(100):
+    # Sample prompts
+    prompts = ["Write a story about", "Explain quantum physics", "What is AI"]
+    
+    # Generate responses
+    query_tensors = [tokenizer.encode(p, return_tensors="pt") for p in prompts]
+    response_tensors = ppo_trainer.generate(query_tensors, max_new_tokens=50)
+    
+    # Decode responses
+    responses = [tokenizer.decode(r.squeeze()) for r in response_tensors]
+    
+    # Get rewards from reward model
+    rewards = []
+    for prompt, response in zip(prompts, responses):
+        reward = reward_model(prompt + response)
+        rewards.append(torch.tensor(reward))
+    
+    # Run PPO step
+    stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
+    
+    # Log metrics
+    print(f"Epoch {epoch}: reward_mean={stats['ppo/mean_reward']:.4f}")`;
+
+  const dpoCode = `from trl import DPOTrainer, DPOConfig
+from datasets import load_dataset
+
+# Load preference dataset
+# Format: {"prompt": "...", "chosen": "...", "rejected": "..."}
+dataset = load_dataset("Anthropic/hh-rlhf")
+
+# Load model
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+ref_model = AutoModelForCausalLM.from_pretrained("gpt2")
+tokenizer = AutoTokenizer.from_pretrained("gpt2")
+
+# DPO Configuration
+config = DPOConfig(
+    beta=0.1,  # Temperature parameter
+    learning_rate=5e-5,
+    lr_scheduler_type="cosine",
+    max_steps=1000,
+    warmup_steps=100,
+)
+
+# Initialize DPO trainer
+trainer = DPOTrainer(
+    model=model,
+    ref_model=ref_model,
+    args=config,
+    train_dataset=dataset["train"],
+    eval_dataset=dataset["test"],
+    tokenizer=tokenizer,
+)
+
+# Train
+trainer.train()
+
+# Save model
+trainer.save_model("dpo_model")`;
+
+  return (
+    <section id="rlhf" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-pink-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            RLHF & Alignment 🧠
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Align model dengan preferensi manusia menggunakan Reinforcement Learning from Human Feedback
+          </p>
+        </motion.div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Brain className="w-5 h-5 text-pink-400" />
+              PPO (Proximal Policy Optimization)
+            </h3>
+            <CodeBlock code={rlhfCode} title="ppo_training.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-400" />
+              DPO (Direct Preference Optimization)
+            </h3>
+            <CodeBlock code={dpoCode} title="dpo_training.py" />
+          </motion.div>
+        </div>
+
+        {/* RLHF Pipeline diagram */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-12 p-6 rounded-2xl bg-gray-900/50 border border-gray-800/50"
+        >
+          <h3 className="text-lg font-semibold text-white mb-6 text-center">RLHF Pipeline</h3>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+            {[
+              { step: '1', title: 'Collect Preferences', desc: 'Human annotators rank model outputs', icon: Users },
+              { step: '2', title: 'Train Reward Model', desc: 'Learn to predict human preferences', icon: BarChart3 },
+              { step: '3', title: 'RL Optimization', desc: 'PPO/DPO to optimize policy', icon: Brain },
+              { step: '4', title: 'Evaluate & Iterate', desc: 'Benchmark and refine', icon: TrendingUp },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-pink-500/10 border-2 border-pink-500/30 flex items-center justify-center mb-2">
+                    <item.icon className="w-7 h-7 text-pink-400" />
+                  </div>
+                  <div className="text-xs text-pink-400 font-mono mb-1">Step {item.step}</div>
+                  <div className="text-white font-semibold text-sm mb-1">{item.title}</div>
+                  <div className="text-gray-500 text-xs max-w-[150px]">{item.desc}</div>
+                </div>
+                {i < 3 && <ArrowRight className="w-5 h-5 text-gray-600 hidden md:block" />}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+// ============ DEPLOYMENT SECTION ============
+function DeploymentSection() {
+  const vllmCode = `from vllm import LLM, SamplingParams
+
+# Initialize vLLM engine
+llm = LLM(
+    model="meta-llama/Llama-2-7b-hf",
+    tensor_parallel_size=2,  # Use 2 GPUs
+    dtype="float16",
+    gpu_memory_utilization=0.9,
+)
+
+# Sampling parameters
+sampling_params = SamplingParams(
+    temperature=0.7,
+    top_p=0.9,
+    max_tokens=500,
+    repetition_penalty=1.1,
+)
+
+# Generate
+prompts = [
+    "The future of AI is",
+    "Explain quantum computing in simple terms:",
+]
+
+outputs = llm.generate(prompts, sampling_params)
+
+for output in outputs:
+    prompt = output.prompt
+    generated_text = output.outputs[0].text
+    print(f"Prompt: {prompt}")
+    print(f"Generated: {generated_text}")
+    print("---")`;
+
+  const quantizationCode = `from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+
+# Load model dengan quantization
+model_id = "meta-llama/Llama-2-7b-hf"
+
+# 4-bit quantization dengan bitsandbytes
+from transformers import BitsAndBytesConfig
+
+quantization_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_compute_dtype=torch.float16,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_use_double_quant=True,
+)
+
+model = AutoModelForCausalLM.from_pretrained(
+    model_id,
+    quantization_config=quantization_config,
+    device_map="auto"
+)
+
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+
+# Inference
+inputs = tokenizer("AI will", return_tensors="pt").to("cuda")
+outputs = model.generate(**inputs, max_new_tokens=50)
+print(tokenizer.decode(outputs[0]))
+
+# Model size comparison:
+# FP16: ~14GB
+# 8-bit: ~7GB
+# 4-bit: ~3.5GB`;
+
+  const apiCode = `from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from vllm import LLM, SamplingParams
+import uvicorn
+
+app = FastAPI(title="GPT API")
+
+# Load model
+llm = LLM(model="meta-llama/Llama-2-7b-hf")
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    max_tokens: int = 100
+    temperature: float = 0.7
+    top_p: float = 0.9
+
+class GenerateResponse(BaseModel):
+    text: str
+    tokens_generated: int
+
+@app.post("/generate", response_model=GenerateResponse)
+async def generate(request: GenerateRequest):
+    try:
+        sampling_params = SamplingParams(
+            temperature=request.temperature,
+            top_p=request.top_p,
+            max_tokens=request.max_tokens,
+        )
+        
+        outputs = llm.generate([request.prompt], sampling_params)
+        generated_text = outputs[0].outputs[0].text
+        
+        return GenerateResponse(
+            text=generated_text,
+            tokens_generated=len(outputs[0].outputs[0].token_ids)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)`;
+
+  return (
+    <section id="deployment" className="py-24 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Deployment & Inference 🚀
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Optimasi dan deploy model ke production dengan vLLM, quantization, dan FastAPI
+          </p>
+        </motion.div>
+
+        <div className="space-y-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-400" />
+              High-Performance Inference dengan vLLM
+            </h3>
+            <CodeBlock code={vllmCode} title="vllm_inference.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Cpu className="w-5 h-5 text-cyan-400" />
+              Quantization (4-bit / 8-bit)
+            </h3>
+            <CodeBlock code={quantizationCode} title="quantization.py" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Globe className="w-5 h-5 text-green-400" />
+              Production API dengan FastAPI
+            </h3>
+            <CodeBlock code={apiCode} title="api_server.py" />
+          </motion.div>
+        </div>
+
+        {/* Performance comparison */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4"
+        >
+          {[
+            { title: 'vLLM', desc: '24x throughput vs HuggingFace', metric: '24x', color: 'yellow' },
+            { title: '4-bit Quantization', desc: '75% memory reduction', metric: '75%', color: 'cyan' },
+            { title: 'Tensor Parallelism', desc: 'Linear scaling with GPUs', metric: 'O(n)', color: 'green' },
+          ].map((item, i) => (
+            <div key={i} className="p-6 rounded-2xl bg-gray-900/50 border border-gray-800/50 text-center">
+              <div className={`text-4xl font-bold mb-2 text-${item.color}-400`}>{item.metric}</div>
+              <div className="text-white font-semibold mb-1">{item.title}</div>
+              <div className="text-gray-400 text-sm">{item.desc}</div>
+            </div>
+          ))}
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
 // ============ FOOTER ============
 function Footer() {
   return (
@@ -1003,9 +1921,14 @@ export default function App() {
       <HeroSection />
       <OverviewSection />
       <ArchitectureSection />
+      <TokenizationSection />
       <PipelineSection />
+      <TrainingLoopSection />
+      <DistributedTrainingSection />
       <ToolsSection />
+      <RLHFSection />
       <ResourcesSection />
+      <DeploymentSection />
       <GettingStartedSection />
       <LearningSection />
       <Footer />
