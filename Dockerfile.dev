@@ -1,0 +1,28 @@
+# Development Dockerfile dengan hot reload
+FROM node:20-alpine
+
+# Install dependencies untuk development
+RUN apk add --no-cache git
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies (termasuk devDependencies)
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose port untuk Vite dev server
+EXPOSE 3000
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV HOST=0.0.0.0
+ENV PORT=3000
+
+# Start development server
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
