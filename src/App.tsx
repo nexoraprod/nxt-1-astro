@@ -4,7 +4,7 @@ import {
   Brain, Cpu, Database, Layers, Code2, Rocket, BookOpen,
   ChevronDown, ChevronRight, Zap, Globe, Server, BarChart3,
   ArrowRight, ExternalLink, Copy, Check, Menu, X, Sparkles,
-  TrendingUp, DollarSign, Clock, Users
+  TrendingUp, DollarSign, Clock, Users, Star, Orbit
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
@@ -26,8 +26,11 @@ function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2">
-            <Brain className="w-6 h-6 text-purple-400" />
-            <span className="font-bold text-white text-lg">BuildGPT</span>
+            <div className="relative">
+              <Orbit className="w-6 h-6 text-purple-400" />
+              <Star className="w-2.5 h-2.5 text-yellow-400 absolute top-0 right-0 fill-yellow-400" />
+            </div>
+            <span className="font-bold text-white text-lg tracking-tight">nxt-1 <span className="text-purple-400">astro</span></span>
           </div>
           <div className="hidden md:flex items-center gap-6">
             {links.map(link => (
@@ -76,6 +79,24 @@ function HeroSection() {
         <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
         {/* Grid pattern */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.03)_1px,transparent_1px)] bg-[size:64px_64px]" />
+        {/* Stars */}
+        <div className="absolute inset-0 overflow-hidden">
+          {Array.from({ length: 50 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full bg-white animate-pulse"
+              style={{
+                width: `${Math.random() * 2 + 1}px`,
+                height: `${Math.random() * 2 + 1}px`,
+                top: `${Math.random() * 100}%`,
+                left: `${Math.random() * 100}%`,
+                opacity: Math.random() * 0.7 + 0.1,
+                animationDelay: `${Math.random() * 3}s`,
+                animationDuration: `${Math.random() * 3 + 2}s`,
+              }}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="relative z-10 max-w-5xl mx-auto px-4 text-center">
@@ -85,20 +106,20 @@ function HeroSection() {
           transition={{ duration: 0.8 }}
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 mb-8">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <span className="text-sm text-purple-300">Panduan Lengkap Membuat Model AI</span>
+            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+            <span className="text-sm text-purple-300">nxt-1 astro — Panduan Lengkap AI</span>
           </div>
 
           <h1 className="text-5xl sm:text-7xl font-bold text-white mb-6 leading-tight">
-            Build Your Own{' '}
+            Welcome to{' '}
             <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-              GPT Model
+              nxt-1 astro
             </span>
           </h1>
 
           <p className="text-xl text-gray-400 max-w-3xl mx-auto mb-10 leading-relaxed">
-            Dari arsitektur Transformer hingga deployment — panduan komprehensif untuk membangun
-            model AI skala besar seperti GPT-6, dari nol hingga produksi.
+            Jelajahi galaksi AI — dari arsitektur Transformer hingga deployment. Panduan komprehensif
+            untuk membangun model AI skala besar seperti GPT-6, dari nol hingga produksi.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -956,12 +977,17 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Brain className="w-5 h-5 text-purple-400" />
-            <span className="font-bold text-white">BuildGPT</span>
+            <div className="relative">
+              <Orbit className="w-5 h-5 text-purple-400" />
+              <Star className="w-2 h-2 text-yellow-400 fill-yellow-400 absolute top-0 right-0" />
+            </div>
+            <span className="font-bold text-white">nxt-1 <span className="text-purple-400">astro</span></span>
             <span className="text-gray-500 text-sm ml-2">— Panduan Lengkap AI Model</span>
           </div>
-          <div className="text-gray-500 text-sm">
+          <div className="text-gray-500 text-sm flex items-center gap-2">
+            <Star className="w-3 h-3 text-yellow-400/50 fill-yellow-400/50" />
             Dibuat dengan ❤️ untuk komunitas AI Indonesia
+            <Star className="w-3 h-3 text-yellow-400/50 fill-yellow-400/50" />
           </div>
         </div>
       </div>
