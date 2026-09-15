@@ -59,7 +59,7 @@ services:
     container_name: nxt-1-astro-grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3001:3000"  # Changed from 3000 to 3001 to avoid conflicts
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
