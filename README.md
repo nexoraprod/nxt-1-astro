@@ -200,13 +200,13 @@ docker-compose down
 
 ```bash
 # Build image
-docker build -t nxt-1-astro:latest .
+docker build -t nexoraprod/nxt-1-astro:latest .
 
 # List images
 docker images | grep nxt-1-astro
 
 # Run container
-docker run -d -p 80:80 nxt-1-astro:latest
+docker run -d -p 80:80 nexoraprod/nxt-1-astro:latest
 
 # Stop container
 docker stop <container-id>
@@ -215,7 +215,20 @@ docker stop <container-id>
 docker rm <container-id>
 
 # Remove image
-docker rmi nxt-1-astro:latest
+docker rmi nexoraprod/nxt-1-astro:latest
+```
+
+### Build & Push ke Docker Hub
+
+Untuk panduan lengkap build dan push ke Docker Hub, lihat **[DOCKER_HUB_GUIDE.md](./DOCKER_HUB_GUIDE.md)**
+
+```bash
+# Quick build & push
+chmod +x scripts/build-and-push.sh
+./scripts/build-and-push.sh
+
+# Atau dengan version tag
+./scripts/build-and-push.sh v1.5.0
 ```
 
 ---
@@ -256,14 +269,16 @@ VITE_APP_NAME=nxt-1-astro
 ### Option 1: Docker (Recommended)
 
 ```bash
-# Build and push to registry
-docker build -t your-registry/nxt-1-astro:latest .
-docker push your-registry/nxt-1-astro:latest
+# Build and push to Docker Hub
+docker build -t nexoraprod/nxt-1-astro:latest .
+docker push nexoraprod/nxt-1-astro:latest
 
 # Deploy to server
-docker pull your-registry/nxt-1-astro:latest
-docker run -d -p 80:80 your-registry/nxt-1-astro:latest
+docker pull nexoraprod/nxt-1-astro:latest
+docker run -d -p 80:80 nexoraprod/nxt-1-astro:latest
 ```
+
+Lihat **[DOCKER_HUB_GUIDE.md](./DOCKER_HUB_GUIDE.md)** untuk panduan lengkap.
 
 ### Option 2: Vercel
 

@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    image: ${DOCKER_IMAGE:-nxt-1-astro:latest}
+    image: ${DOCKER_IMAGE:-nexoraprod/nxt-1-astro:latest}
     container_name: nxt-1-astro
     restart: unless-stopped
     ports:
@@ -31,7 +31,7 @@ services:
         max-file: "3"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-      - "maintainer=your-email@example.com"
+      - "maintainer=nexoraprod@users.noreply.github.com"
 
   # Optional: Watchtower untuk auto-update container
   watchtower:

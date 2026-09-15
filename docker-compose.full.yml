@@ -6,6 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: nexoraprod/nxt-1-astro:latest
     container_name: nxt-1-astro-app
     restart: unless-stopped
     ports:
