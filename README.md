@@ -524,6 +524,45 @@ Setiap push ke `main` branch akan auto deploy! 🚀
 
 ---
 
+## 🔧 Troubleshooting
+
+### GitHub Publishing Failed?
+
+Jika mengalami masalah saat push ke GitHub:
+
+1. **Gunakan Script Helper**:
+```bash
+chmod +x scripts/push-to-github.sh
+./scripts/push-to-github.sh
+```
+
+2. **Check TROUBLESHOOTING.md** - Panduan lengkap untuk:
+   - Merge conflicts
+   - Authentication failed
+   - Branch tidak sinkron
+   - File terlalu besar
+   - Permission denied
+
+3. **Quick Fix**:
+```bash
+# Pull dulu untuk sync
+git pull --rebase origin main
+
+# Jika ada konflik, resolve manual
+# Kemudian push
+git push origin main
+```
+
+4. **Force Push (Last Resort)**:
+```bash
+# ⚠️ WARNING: Overwrite remote!
+git push --force origin main
+```
+
+Lihat [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) untuk panduan lengkap.
+
+---
+
 ## 📧 Contact
 
 - **Author**: Your Name
