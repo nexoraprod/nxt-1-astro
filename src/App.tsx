@@ -24,6 +24,7 @@ function Navigation() {
     { href: '#safety', label: 'Safety' },
     { href: '#monitoring', label: 'Monitoring' },
     { href: '#observability', label: 'Observability' },
+    { href: '#inference-optimization', label: 'Optimasi Inferensi' },
     { href: '#optimization', label: 'Optimasi' },
     { href: '#roadmap', label: 'Roadmap' },
     { href: '#deployment', label: 'Deploy' },
@@ -6860,6 +6861,1647 @@ print(f"Memory increase: {diff['cuda_allocated_diff_gb']:.2f} GB")`;
   );
 }
 
+// ============ INFERENCE OPTIMIZATION DEEP DIVE ============
+function InferenceOptimizationDeepSection() {
+  const [activeTechnique, setActiveTechnique] = useState<'kv' | 'batching' | 'speculative' | 'flash' | 'quant' | 'compile' | 'streaming' | 'benchmark'>('kv');
+
+  const kvCacheCode = `# OPTIMASI 1: KV Cache & PagedAttention
+import torch
+import torch.nn as nn
+from typing import Optional, Tuple
+
+class PagedAttentionKVCache:
+    """
+    PagedAttention: Memory-efficient KV cache management
+    Mengurangi memory fragmentation dengan paging
+    """
+    
+    def __init__(
+        self,
+        num_layers: int,
+        num_heads: int,
+        head_dim: int,
+        block_size: int = 16,
+        max_blocks: int = 1024
+    ):
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.head_dim = head_dim
+        self.block_size = block_size
+        self.max_blocks = max_blocks
+        
+        # Allocate block tables
+        self.key_cache = torch.zeros(
+            num_layers, max_blocks, block_size, num_heads, head_dim,
+            dtype=torch.float16, device='cuda'
+        )
+        self.value_cache = torch.zeros_like(self.key_cache)
+        
+        # Block allocation tracking
+        self.block_table = {}  # request_id -> list of block indices
+        self.free_blocks = list(range(max_blocks))
+        self.num_allocated = 0
+    
+    def allocate_blocks(self, request_id: str, num_blocks: int) -> bool:
+        """Allocate blocks for a request"""
+        if len(self.free_blocks) < num_blocks:
+            return False
+        
+        allocated = self.free_blocks[:num_blocks]
+        self.free_blocks = self.free_blocks[num_blocks:]
+        self.block_table[request_id] = allocated
+        self.num_allocated += num_blocks
+        
+        return True
+    
+    def free_request(self, request_id: str):
+        """Free blocks for completed request"""
+        if request_id in self.block_table:
+            blocks = self.block_table[request_id]
+            self.free_blocks.extend(blocks)
+            del self.block_table[request_id]
+            self.num_allocated -= len(blocks)
+            
+            # Clear cache
+            for block_idx in blocks:
+                self.key_cache[:, block_idx] = 0
+                self.value_cache[:, block_idx] = 0
+    
+    def get_block_table(self, request_id: str) -> torch.Tensor:
+        """Get block table for attention computation"""
+        return torch.tensor(self.block_table[request_id], device='cuda')
+    
+    def write_kv(
+        self,
+        layer_idx: int,
+        block_idx: int,
+        position: int,
+        key: torch.Tensor,
+        value: torch.Tensor
+    ):
+        """Write key-value to cache"""
+        local_pos = position % self.block_size
+        self.key_cache[layer_idx, block_idx, local_pos] = key
+        self.value_cache[layer_idx, block_idx, local_pos] = value
+    
+    def read_kv(
+        self,
+        layer_idx: int,
+        block_indices: torch.Tensor,
+        positions: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Read key-value from cache"""
+        keys = []
+        values = []
+        
+        for block_idx, pos in zip(block_indices, positions):
+            local_pos = pos % self.block_size
+            keys.append(self.key_cache[layer_idx, block_idx, local_pos])
+            values.append(self.value_cache[layer_idx, block_idx, local_pos])
+        
+        return torch.stack(keys), torch.stack(values)
+
+class PrefixCaching:
+    """
+    Cache prefix yang sering digunakan untuk mengurangi komputasi
+    """
+    
+    def __init__(self, max_cache_size: int = 1000):
+        self.cache = {}
+        self.max_cache_size = max_cache_size
+        self.access_count = {}
+    
+    def compute_prefix_hash(self, tokens: list) -> str:
+        """Compute hash for prefix"""
+        # Use first N tokens as prefix
+        prefix_length = min(128, len(tokens))
+        prefix = tuple(tokens[:prefix_length])
+        return hash(prefix)
+    
+    def get_cached_kv(self, tokens: list, layer_idx: int):
+        """Get cached KV for prefix if available"""
+        prefix_hash = self.compute_prefix_hash(tokens)
+        
+        if prefix_hash in self.cache:
+            self.access_count[prefix_hash] = self.access_count.get(prefix_hash, 0) + 1
+            return self.cache[prefix_hash][layer_idx]
+        
+        return None
+    
+    def cache_prefix_kv(self, tokens: list, kv_cache: dict):
+        """Cache KV for prefix"""
+        prefix_hash = self.compute_prefix_hash(tokens)
+        
+        # Evict least accessed if cache full
+        if len(self.cache) >= self.max_cache_size:
+            min_hash = min(self.access_count, key=self.access_count.get)
+            del self.cache[min_hash]
+            del self.access_count[min_hash]
+        
+        self.cache[prefix_hash] = kv_cache
+        self.access_count[prefix_hash] = 1
+
+# Usage
+kv_cache = PagedAttentionKVCache(
+    num_layers=32,
+    num_heads=32,
+    head_dim=128,
+    block_size=16,
+    max_blocks=2048
+)
+
+# Allocate blocks for request
+kv_cache.allocate_blocks("request_1", num_blocks=10)
+
+# Write KV cache
+block_table = kv_cache.get_block_table("request_1")
+kv_cache.write_kv(layer_idx=0, block_idx=block_table[0], position=0, key=key, value=value)
+
+# Free when done
+kv_cache.free_request("request_1")`;
+
+  const continuousBatchingCode = `# OPTIMASI 2: Continuous Batching
+import torch
+from typing import List, Dict, Optional
+from dataclasses import dataclass
+import time
+
+@dataclass
+class Request:
+    request_id: str
+    prompt_tokens: torch.Tensor
+    max_tokens: int
+    temperature: float
+    top_p: float
+    created_at: float = time.time()
+    
+    # State
+    generated_tokens: List[int] = []
+    is_finished: bool = False
+    finish_reason: Optional[str] = None
+
+class ContinuousBatchingScheduler:
+    """
+    Continuous Batching: Dynamic batch composition
+    Mengganti static batching dengan dynamic scheduling
+    """
+    
+    def __init__(
+        self,
+        max_batch_size: int = 256,
+        max_total_tokens: int = 32768,
+        max_input_length: int = 4096,
+        max_total_sequences: int = 1024
+    ):
+        self.max_batch_size = max_batch_size
+        self.max_total_tokens = max_total_tokens
+        self.max_input_length = max_input_length
+        self.max_total_sequences = max_total_sequences
+        
+        # Request queues
+        self.waiting_queue: List[Request] = []
+        self.running_batch: List[Request] = []
+        
+        # Statistics
+        self.total_requests = 0
+        self.total_tokens_generated = 0
+    
+    def add_request(self, request: Request) -> bool:
+        """Add new request to waiting queue"""
+        if len(request.prompt_tokens) > self.max_input_length:
+            return False
+        
+        self.waiting_queue.append(request)
+        self.total_requests += 1
+        
+        return True
+    
+    def schedule_batch(self) -> List[Request]:
+        """
+        Schedule next batch with continuous batching logic
+        """
+        # Remove finished requests from running batch
+        self.running_batch = [
+            req for req in self.running_batch 
+            if not req.is_finished
+        ]
+        
+        # Calculate available capacity
+        current_tokens = sum(
+            len(req.prompt_tokens) + len(req.generated_tokens)
+            for req in self.running_batch
+        )
+        
+        available_slots = self.max_batch_size - len(self.running_batch)
+        available_tokens = self.max_total_tokens - current_tokens
+        
+        # Add requests from waiting queue
+        new_requests = []
+        for request in self.waiting_queue:
+            if len(new_requests) >= available_slots:
+                break
+            
+            request_tokens = len(request.prompt_tokens)
+            if request_tokens <= available_tokens:
+                new_requests.append(request)
+                available_tokens -= request_tokens
+        
+        # Move scheduled requests to running batch
+        self.running_batch.extend(new_requests)
+        self.waiting_queue = [
+            req for req in self.waiting_queue 
+            if req not in new_requests
+        ]
+        
+        return self.running_batch
+    
+    def get_batch_tensors(self, batch: List[Request]) -> Dict[str, torch.Tensor]:
+        """
+        Convert batch to padded tensors for model inference
+        """
+        if not batch:
+            return {}
+        
+        # For prefill phase: process prompts
+        max_prompt_len = max(len(req.prompt_tokens) for req in batch)
+        
+        input_ids = torch.zeros(
+            len(batch), max_prompt_len,
+            dtype=torch.long, device='cuda'
+        )
+        attention_mask = torch.zeros_like(input_ids)
+        
+        for i, req in enumerate(batch):
+            seq_len = len(req.prompt_tokens)
+            input_ids[i, :seq_len] = req.prompt_tokens
+            attention_mask[i, :seq_len] = 1
+        
+        # For decode phase: process last tokens
+        last_tokens = torch.tensor(
+            [req.generated_tokens[-1] if req.generated_tokens else req.prompt_tokens[-1]
+             for req in batch],
+            dtype=torch.long, device='cuda'
+        )
+        
+        return {
+            'input_ids': input_ids,
+            'attention_mask': attention_mask,
+            'last_tokens': last_tokens,
+            'sequence_lengths': torch.tensor(
+                [len(req.prompt_tokens) + len(req.generated_tokens) for req in batch],
+                device='cuda'
+            )
+        }
+    
+    def update_batch(self, batch: List[Request], generated_tokens: torch.Tensor):
+        """Update batch with newly generated tokens"""
+        for i, req in enumerate(batch):
+            token = generated_tokens[i].item()
+            req.generated_tokens.append(token)
+            
+            # Check stopping criteria
+            if (len(req.generated_tokens) >= req.max_tokens or
+                token == EOS_TOKEN_ID):
+                req.is_finished = True
+                req.finish_reason = 'length' if len(req.generated_tokens) >= req.max_tokens else 'eos'
+            
+            self.total_tokens_generated += 1
+    
+    def get_stats(self) -> Dict:
+        """Get scheduler statistics"""
+        return {
+            'waiting_requests': len(self.waiting_queue),
+            'running_requests': len(self.running_batch),
+            'total_requests': self.total_requests,
+            'total_tokens_generated': self.total_tokens_generated,
+            'avg_queue_time': self._calculate_avg_queue_time()
+        }
+    
+    def _calculate_avg_queue_time(self) -> float:
+        """Calculate average time spent in queue"""
+        if not self.waiting_queue:
+            return 0.0
+        
+        current_time = time.time()
+        total_wait = sum(
+            current_time - req.created_at
+            for req in self.waiting_queue
+        )
+        
+        return total_wait / len(self.waiting_queue)
+
+# Usage
+scheduler = ContinuousBatchingScheduler(
+    max_batch_size=256,
+    max_total_tokens=32768
+)
+
+# Add requests
+scheduler.add_request(Request(
+    request_id="req_1",
+    prompt_tokens=torch.tensor([1, 2, 3, 4, 5]),
+    max_tokens=100,
+    temperature=0.7
+))
+
+# Schedule and process
+batch = scheduler.schedule_batch()
+batch_tensors = scheduler.get_batch_tensors(batch)
+
+# Generate tokens
+generated = model.generate(**batch_tensors)
+scheduler.update_batch(batch, generated)
+
+# Get stats
+stats = scheduler.get_stats()
+print(f"Running: {stats['running_requests']}, Waiting: {stats['waiting_requests']}")`;
+
+  const speculativeCode = `# OPTIMASI 3: Speculative Decoding
+import torch
+import torch.nn.functional as F
+from typing import List, Tuple
+
+class SpeculativeDecoder:
+    """
+    Speculative Decoding: Draft-verify paradigm
+    Menggunakan model kecil untuk draft, model besar untuk verify
+    Speed up 2-3x dengan quality yang sama
+    """
+    
+    def __init__(
+        self,
+        draft_model,
+        target_model,
+        draft_tokenizer,
+        target_tokenizer,
+        gamma: int = 5  # Number of draft tokens
+    ):
+        self.draft_model = draft_model
+        self.target_model = target_model
+        self.draft_tokenizer = draft_tokenizer
+        self.target_tokenizer = target_tokenizer
+        self.gamma = gamma
+    
+    def generate(
+        self,
+        prompt: str,
+        max_new_tokens: int = 100,
+        temperature: float = 1.0
+    ) -> str:
+        """Generate with speculative decoding"""
+        # Tokenize prompt
+        input_ids = self.target_tokenizer(
+            prompt, return_tensors="pt"
+        ).input_ids.to(self.target_model.device)
+        
+        generated_tokens = []
+        past_key_values_target = None
+        past_key_values_draft = None
+        
+        while len(generated_tokens) < max_new_tokens:
+            # Phase 1: Draft model generates gamma tokens
+            draft_tokens, draft_probs, past_key_values_draft = self._draft_phase(
+                input_ids, past_key_values_draft
+            )
+            
+            # Phase 2: Target model verifies all draft tokens
+            accepted_tokens, past_key_values_target = self._verify_phase(
+                input_ids, draft_tokens, draft_probs, past_key_values_target
+            )
+            
+            # Add accepted tokens
+            generated_tokens.extend(accepted_tokens)
+            
+            # Update input_ids for next iteration
+            input_ids = torch.tensor([accepted_tokens], device=input_ids.device)
+            
+            # Check for EOS
+            if self.target_tokenizer.eos_token_id in accepted_tokens:
+                break
+        
+        # Decode generated tokens
+        return self.target_tokenizer.decode(
+            generated_tokens, skip_special_tokens=True
+        )
+    
+    def _draft_phase(
+        self,
+        input_ids: torch.Tensor,
+        past_key_values: Optional[torch.Tensor]
+    ) -> Tuple[List[int], torch.Tensor, torch.Tensor]:
+        """Draft model generates gamma tokens autoregressively"""
+        draft_tokens = []
+        draft_probs = []
+        
+        current_input = input_ids
+        
+        for _ in range(self.gamma):
+            with torch.no_grad():
+                outputs = self.draft_model(
+                    current_input,
+                    past_key_values=past_key_values,
+                    use_cache=True
+                )
+            
+            # Get next token probabilities
+            logits = outputs.logits[:, -1, :] / 0.8  # Draft temperature
+            probs = F.softmax(logits, dim=-1)
+            
+            # Sample next token
+            next_token = torch.multinomial(probs, num_samples=1)
+            
+            draft_tokens.append(next_token.item())
+            draft_probs.append(probs)
+            
+            # Update for next iteration
+            current_input = next_token
+            past_key_values = outputs.past_key_values
+        
+        return draft_tokens, torch.stack(draft_probs), past_key_values
+    
+    def _verify_phase(
+        self,
+        input_ids: torch.Tensor,
+        draft_tokens: List[int],
+        draft_probs: torch.Tensor,
+        past_key_values: Optional[torch.Tensor]
+    ) -> Tuple[List[int], torch.Tensor]:
+        """Target model verifies draft tokens"""
+        # Prepare input with draft tokens
+        draft_tensor = torch.tensor([draft_tokens], device=input_ids.device)
+        verify_input = torch.cat([input_ids, draft_tensor], dim=1)
+        
+        with torch.no_grad():
+            outputs = self.target_model(
+                verify_input,
+                past_key_values=past_key_values,
+                use_cache=True
+            )
+        
+        # Get target probabilities for draft positions
+        target_logits = outputs.logits[:, -self.gamma-1:-1, :]
+        target_probs = F.softmax(target_logits / 1.0, dim=-1)  # Target temperature
+        
+        # Verify each draft token
+        accepted_tokens = []
+        
+        for i, (draft_token, draft_prob, target_prob) in enumerate(
+            zip(draft_tokens, draft_probs, target_probs)
+        ):
+            # Rejection sampling
+            r = torch.rand(1, device=input_ids.device)
+            acceptance_ratio = target_prob[0, draft_token] / (draft_prob[0, draft_token] + 1e-8)
+            
+            if r < acceptance_ratio:
+                # Accept draft token
+                accepted_tokens.append(draft_token)
+            else:
+                # Reject and sample from corrected distribution
+                corrected_prob = F.relu(target_prob[0] - draft_prob[0])
+                corrected_prob = corrected_prob / corrected_prob.sum()
+                
+                next_token = torch.multinomial(corrected_prob, num_samples=1)
+                accepted_tokens.append(next_token.item())
+                break
+        
+        # If all draft tokens accepted, sample one more from target
+        if len(accepted_tokens) == self.gamma:
+            final_logits = outputs.logits[:, -1, :]
+            final_probs = F.softmax(final_logits / 1.0, dim=-1)
+            next_token = torch.multinomial(final_probs, num_samples=1)
+            accepted_tokens.append(next_token.item())
+        
+        return accepted_tokens, outputs.past_key_values
+    
+    def get_acceptance_rate(self) -> float:
+        """Calculate draft acceptance rate"""
+        # Track acceptance statistics
+        return self.total_accepted / max(1, self.total_draft_tokens)
+
+# Usage
+spec_decoder = SpeculativeDecoder(
+    draft_model=draft_model,  # e.g., Llama-68M
+    target_model=target_model,  # e.g., Llama-7B
+    draft_tokenizer=tokenizer,
+    target_tokenizer=tokenizer,
+    gamma=5
+)
+
+output = spec_decoder.generate(
+    prompt="The future of AI is",
+    max_new_tokens=200,
+    temperature=0.7
+)`;
+
+  const flashAttentionCode = `# OPTIMASI 4: FlashAttention Implementation
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from typing import Optional
+
+class FlashAttention(nn.Module):
+    """
+    FlashAttention: Memory-efficient exact attention
+    Mengurangi memory dari O(N^2) ke O(N) dengan IO-awareness
+    """
+    
+    def __init__(self, causal: bool = True, softmax_scale: Optional[float] = None):
+        super().__init__()
+        self.causal = causal
+        self.softmax_scale = softmax_scale
+    
+    def forward(
+        self,
+        q: torch.Tensor,  # [batch, seqlen, nheads, headdim]
+        k: torch.Tensor,
+        v: torch.Tensor,
+        dropout_p: float = 0.0,
+        softmax_scale: Optional[float] = None,
+        causal: Optional[bool] = None
+    ) -> torch.Tensor:
+        """
+        FlashAttention forward pass
+        Menggunakan Triton kernel untuk efficiency
+        """
+        try:
+            # Try to use flash_attn if available
+            from flash_attn import flash_attn_func
+            
+            return flash_attn_func(
+                q, k, v,
+                dropout_p=dropout_p,
+                softmax_scale=softmax_scale or self.softmax_scale,
+                causal=causal if causal is not None else self.causal
+            )
+        except ImportError:
+            # Fallback to manual implementation
+            return self._manual_flash_attention(q, k, v, dropout_p, softmax_scale, causal)
+    
+    def _manual_flash_attention(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        dropout_p: float,
+        softmax_scale: Optional[float],
+        causal: Optional[bool]
+    ) -> torch.Tensor:
+        """
+        Manual FlashAttention implementation (simplified)
+        For educational purposes - use flash_attn package in production
+        """
+        batch, seqlen_q, nheads, headdim = q.shape
+        seqlen_k = k.shape[1]
+        
+        if softmax_scale is None:
+            softmax_scale = 1.0 / (headdim ** 0.5)
+        
+        # Split into blocks for memory efficiency
+        block_size = 128
+        output = torch.zeros_like(q)
+        
+        # Process in blocks
+        for i in range(0, seqlen_q, block_size):
+            q_block = q[:, i:i+block_size]
+            
+            # Compute attention scores
+            scores = torch.einsum('bqhd,bkhd->bqhk', q_block, k) * softmax_scale
+            
+            # Apply causal mask
+            if causal or (causal is None and self.causal):
+                causal_mask = torch.triu(
+                    torch.ones(seqlen_q, seqlen_k, device=q.device, dtype=torch.bool),
+                    diagonal=1
+                )
+                scores.masked_fill_(causal_mask[i:i+block_size], float('-inf'))
+            
+            # Softmax
+            attn_weights = F.softmax(scores, dim=-1)
+            
+            # Dropout
+            if dropout_p > 0.0:
+                attn_weights = F.dropout(attn_weights, p=dropout_p)
+            
+            # Compute output
+            output_block = torch.einsum('bqhk,bkhd->bqhd', attn_weights, v)
+            output[:, i:i+block_size] = output_block
+        
+        return output
+
+class FlashAttentionV2(FlashAttention):
+    """
+    FlashAttention-2: Further optimizations
+    - Better parallelization
+    - Reduced non-matmul FLOPs
+    - Support for head dimension up to 256
+    """
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    
+    def forward(self, q, k, v, **kwargs):
+        try:
+            from flash_attn import flash_attn_func
+            
+            # FlashAttention-2 specific optimizations
+            return flash_attn_func(
+                q, k, v,
+                dropout_p=kwargs.get('dropout_p', 0.0),
+                softmax_scale=kwargs.get('softmax_scale', self.softmax_scale),
+                causal=kwargs.get('causal', self.causal),
+                # FlashAttention-2 specific
+                window_size=(-1, -1),  # No sliding window
+                alibi_slopes=None,
+                deterministic=False  # Allow non-deterministic for speed
+            )
+        except ImportError:
+            return super().forward(q, k, v, **kwargs)
+
+# Benchmark comparison
+def benchmark_attention():
+    """Compare standard vs FlashAttention"""
+    import time
+    
+    batch, seqlen, nheads, headdim = 4, 2048, 32, 128
+    
+    q = torch.randn(batch, seqlen, nheads, headdim, device='cuda', dtype=torch.float16)
+    k = torch.randn_like(q)
+    v = torch.randn_like(q)
+    
+    # Standard attention
+    standard_attn = StandardAttention()
+    
+    torch.cuda.synchronize()
+    start = time.time()
+    for _ in range(10):
+        out_standard = standard_attn(q, k, v)
+    torch.cuda.synchronize()
+    standard_time = time.time() - start
+    
+    # FlashAttention
+    flash_attn = FlashAttention()
+    
+    torch.cuda.synchronize()
+    start = time.time()
+    for _ in range(10):
+        out_flash = flash_attn(q, k, v)
+    torch.cuda.synchronize()
+    flash_time = time.time() - start
+    
+    print(f"Standard Attention: {standard_time:.3f}s")
+    print(f"FlashAttention: {flash_time:.3f}s")
+    print(f"Speedup: {standard_time / flash_time:.2f}x")
+    
+    # Memory comparison
+    print(f"\\nMemory Usage:")
+    print(f"Standard: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
+    torch.cuda.reset_peak_memory_stats()
+    
+    out_flash = flash_attn(q, k, v)
+    print(f"Flash: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
+
+# Usage
+flash_attn = FlashAttention(causal=True)
+output = flash_attn(q, k, v, dropout_p=0.1)`;
+
+  const quantizationCode = `# OPTIMASI 5: Quantization untuk Inferensi
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from auto_gptq import AutoGPTQForCausalLM
+from awq import AutoAWQForCausalLM
+
+class QuantizationManager:
+    """
+    Manager untuk berbagai teknik quantization
+    """
+    
+    @staticmethod
+    def load_gptq_model(model_path: str, device: str = "cuda"):
+        """
+        Load GPTQ quantized model (4-bit)
+        Post-training quantization dengan calibration
+        """
+        model = AutoGPTQForCausalLM.from_quantized(
+            model_path,
+            device=device,
+            use_triton=False,
+            use_safetensors=True
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        
+        return model, tokenizer
+    
+    @staticmethod
+    def load_awq_model(model_path: str, device: str = "cuda"):
+        """
+        Load AWQ quantized model (4-bit)
+        Activation-aware Weight Quantization
+        """
+        model = AutoAWQForCausalLM.from_quantized(
+            model_path,
+            device=device,
+            safetensors=True
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        
+        return model, tokenizer
+    
+    @staticmethod
+    def load_bnb_4bit(model_name: str, device: str = "cuda"):
+        """
+        Load model dengan BitsAndBytes 4-bit quantization
+        NF4 (Normal Float 4-bit) dengan double quantization
+        """
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True  # Nested quantization
+        )
+        
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=quantization_config,
+            device_map="auto"
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        
+        return model, tokenizer
+    
+    @staticmethod
+    def load_bnb_8bit(model_name: str, device: str = "cuda"):
+        """
+        Load model dengan BitsAndBytes 8-bit quantization
+        LLM.int8() untuk mixed precision
+        """
+        quantization_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+            llm_int8_threshold=6.0,  # Outlier threshold
+            llm_int8_skip_modules=["lm_head"]  # Skip certain modules
+        )
+        
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=quantization_config,
+            device_map="auto"
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        
+        return model, tokenizer
+    
+    @staticmethod
+    def compare_quantization_methods(model_name: str):
+        """Compare different quantization methods"""
+        import time
+        
+        prompt = "The future of AI is"
+        
+        methods = {
+            'FP16': lambda: AutoModelForCausalLM.from_pretrained(
+                model_name, torch_dtype=torch.float16, device_map="auto"
+            ),
+            '8-bit': lambda: QuantizationManager.load_bnb_8bit(model_name)[0],
+            '4-bit NF4': lambda: QuantizationManager.load_bnb_4bit(model_name)[0],
+        }
+        
+        results = {}
+        
+        for method_name, load_fn in methods.items():
+            print(f"\\n{'='*50}")
+            print(f"Testing {method_name}")
+            print(f"{'='*50}")
+            
+            # Clear memory
+            torch.cuda.empty_cache()
+            
+            # Load model
+            start_time = time.time()
+            model = load_fn()
+            load_time = time.time() - start_time
+            
+            # Get memory usage
+            memory_gb = torch.cuda.max_memory_allocated() / 1e9
+            
+            # Benchmark inference
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            inputs = tokenizer(prompt, return_tensors="pt").to('cuda')
+            
+            torch.cuda.synchronize()
+            start_time = time.time()
+            
+            with torch.no_grad():
+                outputs = model.generate(**inputs, max_new_tokens=50)
+            
+            torch.cuda.synchronize()
+            inference_time = time.time() - start_time
+            
+            tokens_generated = outputs.shape[1] - inputs['input_ids'].shape[1]
+            tokens_per_second = tokens_generated / inference_time
+            
+            results[method_name] = {
+                'memory_gb': memory_gb,
+                'load_time': load_time,
+                'inference_time': inference_time,
+                'tokens_per_second': tokens_per_second
+            }
+            
+            print(f"Memory: {memory_gb:.2f} GB")
+            print(f"Load time: {load_time:.2f}s")
+            print(f"Inference time: {inference_time:.2f}s")
+            print(f"Tokens/sec: {tokens_per_second:.2f}")
+            
+            del model
+        
+        return results
+
+class GGUFConverter:
+    """
+    Convert model ke GGUF format untuk llama.cpp
+    """
+    
+    @staticmethod
+    def convert_to_gguf(
+        model_path: str,
+        output_path: str,
+        quantization_type: str = "Q4_K_M"
+    ):
+        """
+        Convert HuggingFace model ke GGUF
+        
+        Quantization types:
+        - Q4_0: 4-bit, fastest
+        - Q4_K_M: 4-bit, balanced
+        - Q5_K_M: 5-bit, better quality
+        - Q8_0: 8-bit, high quality
+        - F16: 16-bit, no quantization
+        """
+        import subprocess
+        
+        # Step 1: Convert to FP16
+        cmd1 = [
+            "python", "convert.py",
+            "--outfile", f"{output_path}.f16.bin",
+            "--outtype", "f16",
+            model_path
+        ]
+        subprocess.run(cmd1, check=True)
+        
+        # Step 2: Quantize
+        cmd2 = [
+            "./quantize",
+            f"{output_path}.f16.bin",
+            output_path,
+            quantization_type
+        ]
+        subprocess.run(cmd2, check=True)
+        
+        print(f"Converted to {output_path} with {quantization_type}")
+
+# Usage
+quant_manager = QuantizationManager()
+
+# Load quantized model
+model, tokenizer = quant_manager.load_bnb_4bit("meta-llama/Llama-2-7b-hf")
+
+# Compare methods
+results = quant_manager.compare_quantization_methods("meta-llama/Llama-2-7b-hf")
+
+# Convert to GGUF
+GGUFConverter.convert_to_gguf(
+    model_path="meta-llama/Llama-2-7b-hf",
+    output_path="llama-2-7b-q4_k_m.gguf",
+    quantization_type="Q4_K_M"
+)`;
+
+  const compilationCode = `# OPTIMASI 6: Model Compilation & Optimization
+import torch
+import torch._dynamo as dynamo
+from torch.compile import compile as torch_compile
+
+class ModelCompiler:
+    """
+    Compile model untuk inferensi yang lebih cepat
+    Menggunakan torch.compile dan TensorRT
+    """
+    
+    @staticmethod
+    def compile_with_torch(
+        model: torch.nn.Module,
+        mode: str = "reduce-overhead",
+        fullgraph: bool = False,
+        dynamic: bool = False
+    ) -> torch.nn.Module:
+        """
+        Compile model dengan torch.compile (PyTorch 2.0+)
+        
+        Modes:
+        - "default": Balanced speed and compilation time
+        - "reduce-overhead": Optimize for inference, longer compilation
+        - "max-autotune": Maximum performance, longest compilation
+        """
+        compiled_model = torch_compile(
+            model,
+            mode=mode,
+            fullgraph=fullgraph,
+            dynamic=dynamic
+        )
+        
+        return compiled_model
+    
+    @staticmethod
+    def export_to_torchscript(model: torch.nn.Module, example_input: torch.Tensor):
+        """
+        Export model ke TorchScript untuk deployment
+        """
+        model.eval()
+        
+        # Trace model
+        traced_model = torch.jit.trace(model, example_input)
+        
+        # Optimize
+        optimized_model = torch.jit.optimize_for_inference(traced_model)
+        
+        return optimized_model
+    
+    @staticmethod
+    def export_to_onnx(model: torch.nn.Module, example_input: torch.Tensor, output_path: str):
+        """
+        Export model ke ONNX format
+        """
+        model.eval()
+        
+        torch.onnx.export(
+            model,
+            example_input,
+            output_path,
+            export_params=True,
+            opset_version=17,
+            do_constant_folding=True,
+            input_names=['input'],
+            output_names=['output'],
+            dynamic_axes={
+                'input': {0: 'batch_size', 1: 'sequence_length'},
+                'output': {0: 'batch_size', 1: 'sequence_length'}
+            }
+        )
+        
+        print(f"Exported to {output_path}")
+    
+    @staticmethod
+    def convert_to_tensorrt(onnx_path: str, engine_path: str, max_batch_size: int = 8):
+        """
+        Convert ONNX model ke TensorRT engine
+        """
+        import tensorrt as trt
+        
+        logger = trt.Logger(trt.Logger.INFO)
+        builder = trt.Builder(logger)
+        network = builder.create_network(
+            1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+        )
+        parser = trt.OnnxParser(network, logger)
+        
+        # Parse ONNX
+        with open(onnx_path, 'rb') as f:
+            if not parser.parse(f.read()):
+                for error in range(parser.num_errors):
+                    print(parser.get_error(error))
+        
+        # Build engine
+        config = builder.create_builder_config()
+        config.max_workspace_size = 1 << 30  # 1GB
+        
+        # Enable FP16
+        config.set_flag(trt.BuilderFlag.FP16)
+        
+        # Dynamic shapes
+        profile = builder.create_optimization_profile()
+        profile.set_shape(
+            'input',
+            min=(1, 1),
+            opt=(max_batch_size // 2, 512),
+            max=(max_batch_size, 2048)
+        )
+        config.add_optimization_profile(profile)
+        
+        # Build engine
+        engine = builder.build_engine(network, config)
+        
+        with open(engine_path, 'wb') as f:
+            f.write(engine.serialize())
+        
+        print(f"TensorRT engine saved to {engine_path}")
+
+class InferenceOptimizer:
+    """
+    Comprehensive inference optimization pipeline
+    """
+    
+    def __init__(self, model, tokenizer):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.optimized_model = None
+    
+    def optimize(self, strategy: str = "auto"):
+        """
+        Apply optimization strategy
+        
+        Strategies:
+        - "auto": Automatically choose best strategy
+        - "compile": torch.compile
+        - "torchscript": TorchScript
+        - "tensorrt": TensorRT (requires GPU)
+        """
+        if strategy == "auto":
+            # Choose based on available hardware
+            if torch.cuda.is_available():
+                strategy = "compile"
+            else:
+                strategy = "torchscript"
+        
+        if strategy == "compile":
+            self.optimized_model = ModelCompiler.compile_with_torch(
+                self.model, mode="reduce-overhead"
+            )
+        elif strategy == "torchscript":
+            example_input = self.tokenizer("test", return_tensors="pt").input_ids
+            self.optimized_model = ModelCompiler.export_to_torchscript(
+                self.model, example_input
+            )
+        elif strategy == "tensorrt":
+            # Export to ONNX first
+            example_input = self.tokenizer("test", return_tensors="pt").input_ids
+            ModelCompiler.export_to_onnx(
+                self.model, example_input, "model.onnx"
+            )
+            # Convert to TensorRT
+            ModelCompiler.convert_to_tensorrt("model.onnx", "model.engine")
+        
+        return self.optimized_model
+    
+    def benchmark(self, prompt: str, num_iterations: int = 100):
+        """Benchmark optimized vs original model"""
+        import time
+        
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        
+        # Benchmark original
+        torch.cuda.synchronize()
+        start = time.time()
+        for _ in range(num_iterations):
+            with torch.no_grad():
+                _ = self.model.generate(**inputs, max_new_tokens=50)
+        torch.cuda.synchronize()
+        original_time = time.time() - start
+        
+        # Benchmark optimized
+        if self.optimized_model:
+            torch.cuda.synchronize()
+            start = time.time()
+            for _ in range(num_iterations):
+                with torch.no_grad():
+                    _ = self.optimized_model.generate(**inputs, max_new_tokens=50)
+            torch.cuda.synchronize()
+            optimized_time = time.time() - start
+            
+            speedup = original_time / optimized_time
+            
+            print(f"Original: {original_time:.3f}s")
+            print(f"Optimized: {optimized_time:.3f}s")
+            print(f"Speedup: {speedup:.2f}x")
+            
+            return speedup
+        
+        return 1.0
+
+# Usage
+optimizer = InferenceOptimizer(model, tokenizer)
+
+# Auto-optimize
+optimized_model = optimizer.optimize(strategy="auto")
+
+# Benchmark
+speedup = optimizer.benchmark("The future of AI is", num_iterations=100)`;
+
+  const streamingCode = `# OPTIMASI 7: Streaming Inference
+import torch
+from typing import Generator, AsyncGenerator
+import asyncio
+
+class StreamingInference:
+    """
+    Streaming inference untuk real-time token generation
+    """
+    
+    def __init__(self, model, tokenizer):
+        self.model = model
+        self.tokenizer = tokenizer
+    
+    def generate_stream(
+        self,
+        prompt: str,
+        max_new_tokens: int = 100,
+        temperature: float = 0.7,
+        top_p: float = 0.9
+    ) -> Generator[str, None, None]:
+        """
+        Generate tokens secara streaming
+        Yield setiap token yang di-generate
+        """
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        
+        generated_tokens = []
+        past_key_values = None
+        
+        for _ in range(max_new_tokens):
+            with torch.no_grad():
+                if past_key_values is None:
+                    # First token (prefill)
+                    outputs = self.model(
+                        **inputs,
+                        use_cache=True,
+                        return_dict=True
+                    )
+                else:
+                    # Subsequent tokens (decode)
+                    outputs = self.model(
+                        input_ids=next_token.unsqueeze(0),
+                        past_key_values=past_key_values,
+                        use_cache=True,
+                        return_dict=True
+                    )
+            
+            # Get next token
+            logits = outputs.logits[:, -1, :] / temperature
+            
+            # Apply top-p sampling
+            if top_p < 1.0:
+                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                cumulative_probs = torch.cumsum(
+                    torch.softmax(sorted_logits, dim=-1), dim=-1
+                )
+                
+                # Remove tokens with cumulative probability above threshold
+                sorted_indices_to_remove = cumulative_probs > top_p
+                sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+                sorted_indices_to_remove[..., 0] = 0
+                
+                indices_to_remove = sorted_indices[sorted_indices_to_remove]
+                logits[..., indices_to_remove] = float('-inf')
+            
+            # Sample next token
+            probs = torch.softmax(logits, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1)
+            
+            # Decode token
+            token_text = self.tokenizer.decode(
+                next_token[0], skip_special_tokens=True
+            )
+            
+            # Yield token
+            yield token_text
+            
+            # Update state
+            generated_tokens.append(next_token.item())
+            past_key_values = outputs.past_key_values
+            
+            # Check for EOS
+            if next_token.item() == self.tokenizer.eos_token_id:
+                break
+    
+    async def generate_stream_async(
+        self,
+        prompt: str,
+        max_new_tokens: int = 100,
+        temperature: float = 0.7
+    ) -> AsyncGenerator[str, None]:
+        """
+        Async streaming generation
+        """
+        loop = asyncio.get_event_loop()
+        
+        for token in self.generate_stream(prompt, max_new_tokens, temperature):
+            yield token
+            await asyncio.sleep(0)  # Yield control to event loop
+
+class FastAPIStreamingEndpoint:
+    """
+    FastAPI endpoint dengan streaming response
+    """
+    
+    def __init__(self, streaming_inference: StreamingInference):
+        self.streaming_inference = streaming_inference
+    
+    async def stream_response(self, prompt: str, max_tokens: int):
+        """Stream response sebagai Server-Sent Events"""
+        from fastapi.responses import StreamingResponse
+        
+        async def generate():
+            async for token in self.streaming_inference.generate_stream_async(
+                prompt, max_tokens
+            ):
+                yield f"data: {token}\\n\\n"
+            yield "data: [DONE]\\n\\n"
+        
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream"
+        )
+
+# Usage
+streaming = StreamingInference(model, tokenizer)
+
+# Synchronous streaming
+print("Streaming output:")
+for token in streaming.generate_stream("The future of AI is", max_new_tokens=50):
+    print(token, end="", flush=True)
+
+# Async streaming
+async def main():
+    async for token in streaming.generate_stream_async("Hello", max_new_tokens=50):
+        print(token, end="", flush=True)
+
+# asyncio.run(main())`;
+
+  const benchmarkCode = `# OPTIMASI 8: Performance Benchmarking Suite
+import torch
+import time
+import psutil
+import GPUtil
+from typing import Dict, List
+from dataclasses import dataclass
+import json
+
+@dataclass
+class BenchmarkResult:
+    model_name: str
+    optimization: str
+    batch_size: int
+    sequence_length: int
+    latency_ms: float
+    throughput_tokens_per_sec: float
+    memory_gb: float
+    gpu_utilization: float
+    
+    def to_dict(self) -> Dict:
+        return {
+            'model_name': self.model_name,
+            'optimization': self.optimization,
+            'batch_size': self.batch_size,
+            'sequence_length': self.sequence_length,
+            'latency_ms': self.latency_ms,
+            'throughput_tokens_per_sec': self.throughput_tokens_per_sec,
+            'memory_gb': self.memory_gb,
+            'gpu_utilization': self.gpu_utilization
+        }
+
+class InferenceBenchmarkSuite:
+    """
+    Comprehensive benchmarking suite untuk inference optimization
+    """
+    
+    def __init__(self):
+        self.results: List[BenchmarkResult] = []
+    
+    def benchmark_model(
+        self,
+        model,
+        tokenizer,
+        model_name: str,
+        optimization: str,
+        batch_sizes: List[int] = [1, 4, 8, 16],
+        sequence_lengths: List[int] = [128, 512, 1024, 2048],
+        num_warmup: int = 10,
+        num_iterations: int = 100
+    ) -> List[BenchmarkResult]:
+        """
+        Benchmark model dengan berbagai konfigurasi
+        """
+        results = []
+        
+        for batch_size in batch_sizes:
+            for seq_len in sequence_lengths:
+                print(f"\\nBenchmarking: batch={batch_size}, seq_len={seq_len}")
+                
+                # Generate dummy input
+                input_ids = torch.randint(
+                    0, tokenizer.vocab_size,
+                    (batch_size, seq_len),
+                    device=model.device
+                )
+                
+                # Warmup
+                for _ in range(num_warmup):
+                    with torch.no_grad():
+                        _ = model.generate(input_ids, max_new_tokens=10)
+                
+                torch.cuda.synchronize()
+                
+                # Benchmark latency
+                start_time = time.time()
+                total_tokens = 0
+                
+                for _ in range(num_iterations):
+                    with torch.no_grad():
+                        outputs = model.generate(input_ids, max_new_tokens=50)
+                        total_tokens += outputs.shape[1] * batch_size
+                
+                torch.cuda.synchronize()
+                total_time = time.time() - start_time
+                
+                # Calculate metrics
+                latency_ms = (total_time / num_iterations) * 1000
+                throughput = total_tokens / total_time
+                
+                # Get memory usage
+                memory_gb = torch.cuda.max_memory_allocated() / 1e9
+                
+                # Get GPU utilization
+                gpus = GPUtil.getGPUs()
+                gpu_util = gpus[0].load * 100 if gpus else 0
+                
+                result = BenchmarkResult(
+                    model_name=model_name,
+                    optimization=optimization,
+                    batch_size=batch_size,
+                    sequence_length=seq_len,
+                    latency_ms=latency_ms,
+                    throughput_tokens_per_sec=throughput,
+                    memory_gb=memory_gb,
+                    gpu_utilization=gpu_util
+                )
+                
+                results.append(result)
+                self.results.append(result)
+                
+                print(f"  Latency: {latency_ms:.2f}ms")
+                print(f"  Throughput: {throughput:.2f} tokens/sec")
+                print(f"  Memory: {memory_gb:.2f} GB")
+                print(f"  GPU Util: {gpu_util:.1f}%")
+                
+                # Reset memory stats
+                torch.cuda.reset_peak_memory_stats()
+        
+        return results
+    
+    def compare_optimizations(
+        self,
+        models: Dict[str, tuple],  # name -> (model, tokenizer, optimization_name)
+        **benchmark_kwargs
+    ):
+        """
+        Compare different optimization techniques
+        """
+        all_results = {}
+        
+        for name, (model, tokenizer, opt_name) in models.items():
+            print(f"\\n{'='*60}")
+            print(f"Benchmarking: {name} ({opt_name})")
+            print(f"{'='*60}")
+            
+            results = self.benchmark_model(
+                model, tokenizer, name, opt_name, **benchmark_kwargs
+            )
+            all_results[name] = results
+        
+        return all_results
+    
+    def generate_report(self) -> Dict:
+        """Generate comprehensive benchmark report"""
+        if not self.results:
+            return {"error": "No benchmark results available"}
+        
+        # Group by optimization
+        by_optimization = {}
+        for result in self.results:
+            opt = result.optimization
+            if opt not in by_optimization:
+                by_optimization[opt] = []
+            by_optimization[opt].append(result.to_dict())
+        
+        # Calculate averages
+        summary = {}
+        for opt, results in by_optimization.items():
+            avg_latency = sum(r['latency_ms'] for r in results) / len(results)
+            avg_throughput = sum(r['throughput_tokens_per_sec'] for r in results) / len(results)
+            avg_memory = sum(r['memory_gb'] for r in results) / len(results)
+            
+            summary[opt] = {
+                'avg_latency_ms': avg_latency,
+                'avg_throughput_tokens_per_sec': avg_throughput,
+                'avg_memory_gb': avg_memory,
+                'num_benchmarks': len(results)
+            }
+        
+        return {
+            'summary': summary,
+            'detailed_results': by_optimization
+        }
+    
+    def save_report(self, filepath: str):
+        """Save benchmark report to JSON"""
+        report = self.generate_report()
+        
+        with open(filepath, 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        print(f"Report saved to {filepath}")
+
+# Usage
+benchmark_suite = InferenceBenchmarkSuite()
+
+# Compare different optimizations
+models = {
+    'FP16': (model_fp16, tokenizer, 'FP16'),
+    '4-bit': (model_4bit, tokenizer, '4-bit NF4'),
+    'Compiled': (compiled_model, tokenizer, 'torch.compile'),
+    'TensorRT': (tensorrt_model, tokenizer, 'TensorRT')
+}
+
+results = benchmark_suite.compare_optimizations(
+    models,
+    batch_sizes=[1, 4, 8],
+    sequence_lengths=[512, 1024],
+    num_iterations=50
+)
+
+# Generate and save report
+benchmark_suite.save_report("benchmark_report.json")
+
+# Print summary
+report = benchmark_suite.generate_report()
+print("\\n" + "="*60)
+print("BENCHMARK SUMMARY")
+print("="*60)
+
+for opt, metrics in report['summary'].items():
+    print(f"\\n{opt}:")
+    print(f"  Avg Latency: {metrics['avg_latency_ms']:.2f}ms")
+    print(f"  Avg Throughput: {metrics['avg_throughput_tokens_per_sec']:.2f} tokens/sec")
+    print(f"  Avg Memory: {metrics['avg_memory_gb']:.2f} GB")`;
+
+  const techniques = [
+    { id: 'kv', label: 'KV Cache & PagedAttention', icon: Database },
+    { id: 'batching', label: 'Continuous Batching', icon: Layers },
+    { id: 'speculative', label: 'Speculative Decoding', icon: Zap },
+    { id: 'flash', label: 'FlashAttention', icon: Cpu },
+    { id: 'quant', label: 'Quantization', icon: Server },
+    { id: 'compile', label: 'Model Compilation', icon: Code2 },
+    { id: 'streaming', label: 'Streaming Inference', icon: Globe },
+    { id: 'benchmark', label: 'Benchmarking', icon: BarChart3 },
+  ];
+
+  return (
+    <section id="inference-optimization" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-amber-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20 mb-6">
+            <Zap className="w-4 h-4 text-amber-400" />
+            <span className="text-sm text-amber-300">Deep Dive</span>
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
+            Optimasi Inferensi ⚡
+          </h2>
+          <p className="text-gray-400 max-w-3xl mx-auto">
+            Teknik-teknik advanced untuk mempercepat inferensi model AI hingga 10x dengan implementasi lengkap
+          </p>
+        </motion.div>
+
+        {/* Performance metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+          {[
+            { metric: '10x', label: 'Speed Up', desc: 'vs baseline', color: 'amber' },
+            { metric: '75%', label: 'Memory Reduction', desc: 'dengan quantization', color: 'green' },
+            { metric: '2-3x', label: 'Throughput', desc: 'dengan batching', color: 'blue' },
+            { metric: '<50ms', label: 'Latency', desc: 'first token', color: 'purple' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-5 rounded-xl bg-gray-900/50 border border-gray-800/50 text-center"
+            >
+              <div className={`text-3xl font-bold mb-1 text-${item.color}-400`}>{item.metric}</div>
+              <div className="text-white font-semibold text-sm mb-1">{item.label}</div>
+              <div className="text-gray-500 text-xs">{item.desc}</div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Technique tabs */}
+        <div className="flex flex-wrap gap-2 mb-6 justify-center">
+          {techniques.map(tech => (
+            <button
+              key={tech.id}
+              onClick={() => setActiveTechnique(tech.id as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                activeTechnique === tech.id
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'
+              }`}
+            >
+              <tech.icon className="w-4 h-4" />
+              <span className="text-sm font-medium">{tech.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Code display */}
+        <motion.div
+          key={activeTechnique}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {activeTechnique === 'kv' && <CodeBlock code={kvCacheCode} title="kv_cache_paged_attention.py" />}
+          {activeTechnique === 'batching' && <CodeBlock code={continuousBatchingCode} title="continuous_batching.py" />}
+          {activeTechnique === 'speculative' && <CodeBlock code={speculativeCode} title="speculative_decoding.py" />}
+          {activeTechnique === 'flash' && <CodeBlock code={flashAttentionCode} title="flash_attention.py" />}
+          {activeTechnique === 'quant' && <CodeBlock code={quantizationCode} title="quantization.py" />}
+          {activeTechnique === 'compile' && <CodeBlock code={compilationCode} title="model_compilation.py" />}
+          {activeTechnique === 'streaming' && <CodeBlock code={streamingCode} title="streaming_inference.py" />}
+          {activeTechnique === 'benchmark' && <CodeBlock code={benchmarkCode} title="benchmark_suite.py" />}
+        </motion.div>
+
+        {/* Comparison table */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-12 overflow-x-auto"
+        >
+          <h3 className="text-xl font-semibold text-white mb-6 text-center">
+            Perbandingan Teknik Optimasi
+          </h3>
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-800">
+                <th className="py-3 px-4 text-sm font-semibold text-gray-400">Teknik</th>
+                <th className="py-3 px-4 text-sm font-semibold text-gray-400">Speed Up</th>
+                <th className="py-3 px-4 text-sm font-semibold text-gray-400">Memory</th>
+                <th className="py-3 px-4 text-sm font-semibold text-gray-400">Complexity</th>
+                <th className="py-3 px-4 text-sm font-semibold text-gray-400">Best For</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm">
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-white font-medium">KV Cache</td>
+                <td className="py-3 px-4 text-green-400">2-5x</td>
+                <td className="py-3 px-4 text-yellow-400">High</td>
+                <td className="py-3 px-4 text-gray-300">Low</td>
+                <td className="py-3 px-4 text-gray-300">All LLMs</td>
+              </tr>
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-white font-medium">Continuous Batching</td>
+                <td className="py-3 px-4 text-green-400">2-3x</td>
+                <td className="py-3 px-4 text-green-400">Medium</td>
+                <td className="py-3 px-4 text-yellow-400">Medium</td>
+                <td className="py-3 px-4 text-gray-300">High throughput</td>
+              </tr>
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-white font-medium">Speculative Decoding</td>
+                <td className="py-3 px-4 text-green-400">2-3x</td>
+                <td className="py-3 px-4 text-green-400">Medium</td>
+                <td className="py-3 px-4 text-red-400">High</td>
+                <td className="py-3 px-4 text-gray-300">Latency-critical</td>
+              </tr>
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-white font-medium">FlashAttention</td>
+                <td className="py-3 px-4 text-green-400">2-4x</td>
+                <td className="py-3 px-4 text-green-400">Low (O(N))</td>
+                <td className="py-3 px-4 text-green-400">Low</td>
+                <td className="py-3 px-4 text-gray-300">Long context</td>
+              </tr>
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-white font-medium">4-bit Quantization</td>
+                <td className="py-3 px-4 text-green-400">1.5-2x</td>
+                <td className="py-3 px-4 text-green-400">Very Low</td>
+                <td className="py-3 px-4 text-green-400">Low</td>
+                <td className="py-3 px-4 text-gray-300">Memory-constrained</td>
+              </tr>
+              <tr className="border-b border-gray-800/50">
+                <td className="py-3 px-4 text-white font-medium">torch.compile</td>
+                <td className="py-3 px-4 text-green-400">1.5-3x</td>
+                <td className="py-3 px-4 text-green-400">Medium</td>
+                <td className="py-3 px-4 text-green-400">Low</td>
+                <td className="py-3 px-4 text-gray-300">PyTorch 2.0+</td>
+              </tr>
+            </tbody>
+          </table>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
 // ============ MAIN APP ============
 export default function App() {
   return (
@@ -6887,6 +8529,7 @@ export default function App() {
       <DeploymentSection />
       <MonitoringSection />
       <ObservabilitySection />
+      <InferenceOptimizationDeepSection />
       <OptimizationSection />
       <RoadmapSection />
       <FeaturesSection />
