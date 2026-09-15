@@ -34,29 +34,37 @@
 
 ## 🎯 Tentang
 
-**nxt-1 astro** adalah panduan interaktif lengkap untuk membangun model AI skala besar. Website ini mencakup seluruh lifecycle pengembangan AI:
+**nxt-1 astro** adalah panduan interaktif lengkap untuk membangun model AI skala besar. Website ini mencakup seluruh lifecycle pengembangan AI dengan **31 section komprehensif**:
 
-- ✅ Blueprint arsitektur Transformer
-- ✅ Implementasi kode lengkap (25+ file Python)
-- ✅ Training & optimization techniques
+### 📚 Konten Utama
+- ✅ Blueprint arsitektur Transformer (nxt-1 astro Prototype)
+- ✅ Implementasi kode lengkap (44+ file Python)
+- ✅ Data Engineering & Synthetic Data Generation
+- ✅ Training Loop & Distributed Training (DeepSpeed, FSDP)
 - ✅ Fine-tuning (Full, LoRA, QLoRA)
-- ✅ RAG (Retrieval-Augmented Generation)
-- ✅ Agent AI & Tool Use
+- ✅ RAG (Retrieval-Augmented Generation) dengan Advanced Features
+- ✅ Agent AI dengan Tool Use & Planning
 - ✅ Multimodal (Vision, Audio, Video)
-- ✅ Advanced architectures (MoE, Long Context)
-- ✅ Evaluation & benchmarking
-- ✅ Safety & alignment
-- ✅ Production deployment
+- ✅ Advanced Architectures (MoE, Long Context, FlashAttention)
+- ✅ Evaluation & Benchmarking (MMLU, HumanEval, LLM-as-Judge)
+- ✅ Safety & Alignment (Guardrails, Constitutional AI, Red Teaming)
+- ✅ Monitoring & Observability (Prometheus, Grafana, Jaeger)
+- ✅ BAGIAN D: Distributed Tracing, Centralized Logging, Drift Detection, A/B Testing, Audit Logging, Performance Profiling
+- ✅ Optimasi Inferensi (KV Cache, Continuous Batching, Speculative Decoding, Quantization, Model Compilation, Streaming)
+- ✅ Production Deployment dengan Docker & CI/CD
 
 ---
 
 ## ✨ Fitur
 
 ### 📚 Konten Edukatif
-- **27 Section** mencakup seluruh AI development lifecycle
-- **25+ File kode Python** production-ready
+- **31 Section** mencakup seluruh AI development lifecycle
+- **44+ File kode Python** production-ready
 - **Diagram interaktif** untuk arsitektur kompleks
 - **Perbandingan tools** dan framework
+- **4 Learning Paths** (Pemula, Menengah, Lanjutan, Production)
+- **BAGIAN D** - Observability lengkap (Tracing, Logging, Drift Detection, A/B Testing, Audit, Profiling)
+- **8 Teknik Optimasi Inferensi** (KV Cache, Continuous Batching, Speculative Decoding, FlashAttention, Quantization, Compilation, Streaming, Benchmarking)
 
 ### 💻 Kode Examples
 ```python
@@ -95,15 +103,26 @@ class GPTModel(nn.Module):
 ```
 nxt-1-astro/
 ├── src/
-│   ├── App.tsx           # Main application (27 sections)
+│   ├── App.tsx           # Main application (31 sections, 8500+ lines)
 │   ├── main.tsx          # Entry point
 │   └── index.css         # Global styles
 ├── public/               # Static assets
 ├── dist/                 # Build output
+├── scripts/
+│   ├── deploy.sh         # Deployment script
+│   ├── auto-deploy.sh    # Auto-deployment script
+│   ├── setup.sh          # Setup script
+│   └── setup-server.sh   # Server setup script
+├── .github/
+│   └── workflows/
+│       ├── ci-cd.yml     # CI/CD pipeline
+│       └── deploy.yml    # Deployment pipeline
 ├── Dockerfile            # Production Docker image
 ├── Dockerfile.dev        # Development Docker image
 ├── docker-compose.yml    # Docker orchestration
+├── docker-compose.prod.yml # Production Docker setup
 ├── nginx.conf            # Nginx configuration
+├── nginx-ssl.conf        # Nginx SSL configuration
 └── README.md             # This file
 ```
 
@@ -346,34 +365,70 @@ nxt-1-astro/
 
 ---
 
-## 📊 Sections Overview
+## 📊 Sections Overview (31 Section)
 
+### 🏗️ Arsitektur & Fondasi
 | # | Section | Deskripsi |
 |---|---------|-----------|
 | 1 | Overview | Komponen utama AI model |
-| 2 | nxt-1 astro Blueprint | Arsitektur lengkap |
-| 3 | Architecture | Transformer decoder-only |
-| 4 | Tokenization | BPE, SentencePiece |
-| 5 | Data Engineering | Data pipeline |
-| 6 | Pipeline | 4 tahap training |
-| 7 | Training Loop | Optimization techniques |
-| 8 | Distributed Training | DeepSpeed, FSDP |
-| 9 | Fine-Tuning | Full, LoRA, QLoRA |
-| 10 | RAG | Retrieval-Augmented Generation |
-| 11 | Agent AI | Tool use, planning |
-| 12 | Multimodal | Vision, audio, video |
-| 13 | Advanced Architectures | MoE, long context |
-| 14 | Evaluation | Benchmarks, LLM-as-judge |
-| 15 | Safety | Guardrails, red teaming |
-| 16 | Tools | Frameworks & libraries |
-| 17 | RLHF | PPO, DPO |
-| 18 | Resources | Cost estimation |
-| 19 | Deployment | vLLM, quantization |
-| 20 | Roadmap | Development timeline |
-| 21 | Features | Advanced capabilities |
-| 22 | Quick Start | Setup guide |
-| 23 | Getting Started | Learning path |
-| 24 | Learning | Resources & papers |
+| 2 | nxt-1 astro Blueprint | Arsitektur lengkap nxt-1 astro Prototype |
+| 3 | Architecture | Transformer decoder-only implementation |
+| 4 | Tokenization | BPE, SentencePiece, tokenizers |
+| 5 | Data Engineering | Data pipeline, synthetic data generation |
+
+### 🔄 Training & Fine-Tuning
+| # | Section | Deskripsi |
+|---|---------|-----------|
+| 6 | Pipeline | 4 tahap training (Pretraining → SFT → RLHF → Deploy) |
+| 7 | Training Loop | Mixed precision, gradient accumulation, distributed |
+| 8 | Distributed Training | DeepSpeed ZeRO, PyTorch FSDP |
+| 9 | Fine-Tuning | Full, LoRA, QLoRA dengan memory comparison |
+| 10 | RLHF | PPO, DPO, reward modeling |
+
+### 🚀 Advanced Features
+| # | Section | Deskripsi |
+|---|---------|-----------|
+| 11 | RAG | Retrieval-Augmented Generation dengan advanced features |
+| 12 | Agent AI | Tool use, planning, multi-step reasoning |
+| 13 | Multimodal | Vision (LLaVA), Audio (Whisper/Bark), Video |
+| 14 | Advanced Architectures | MoE, Long Context, FlashAttention |
+| 15 | Evaluation | Benchmarks (MMLU, HumanEval), LLM-as-Judge |
+| 16 | Safety | Guardrails, Constitutional AI, Red Teaming |
+
+### 🔭 BAGIAN D: Observability
+| # | Section | Deskripsi |
+|---|---------|-----------|
+| 17 | Monitoring | Prometheus, Grafana, alerting |
+| 18 | Observability | Distributed tracing, centralized logging, drift detection, A/B testing, audit logging, performance profiling |
+
+### ⚡ Optimasi
+| # | Section | Deskripsi |
+|---|---------|-----------|
+| 19 | Optimasi Inferensi | KV Cache, Continuous Batching, Speculative Decoding, FlashAttention, Quantization, Compilation, Streaming, Benchmarking |
+| 20 | Optimasi | Memory, cost, inference optimization |
+
+### 🛠️ Tools & Resources
+| # | Section | Deskripsi |
+|---|---------|-----------|
+| 21 | Tools | Frameworks & libraries comparison |
+| 22 | Resources | Cost estimation, GPU requirements |
+| 23 | Deployment | vLLM, quantization, FastAPI server |
+
+### 🗺️ Roadmap & Learning
+| # | Section | Deskripsi |
+|---|---------|-----------|
+| 24 | Roadmap | 7-phase development timeline |
+| 25 | Features | Advanced capabilities (1M context, multi-modal, etc.) |
+| 26 | Quick Start | 4 learning paths (Pemula → Production) |
+| 27 | Getting Started | Step-by-step guide |
+| 28 | Learning | Resources, papers, courses |
+
+### 📦 Additional Sections
+| # | Section | Deskripsi |
+|---|---------|-----------|
+| 29 | Hero Section | Landing page dengan animasi |
+| 30 | Navigation | 17 menu items dengan responsive design |
+| 31 | Footer | Links dan credits |
 
 ---
 
@@ -417,26 +472,42 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🚀 Deploy dari GitHub
+## 🚀 Deploy
 
-Untuk panduan lengkap deployment dari GitHub repository, lihat:
+### 📖 Panduan Deploy
 
+- **[LOCAL_DEPLOY.md](./LOCAL_DEPLOY.md)** - Deploy lokal dengan monitoring stack (recommended)
 - **[QUICKSTART.md](./QUICKSTART.md)** - Quick start 5 menit
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Panduan deployment lengkap
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Panduan deployment lengkap ke server
 
-### Quick Deploy Commands
+### 🎯 Quick Local Deploy
 
 ```bash
-# 1. Fork & clone repository
+# 1. Clone repository
 git clone https://github.com/nexoraprod/nxt-1-astro.git
 cd nxt-1-astro
 
-# 2. Build & push ke Docker Hub
-docker build -t nexoraprod/nxt-1-astro:latest .
-docker push nexoraprod/nxt-1-astro:latest
+# 2. Make scripts executable
+chmod +x scripts/*.sh
 
-# 3. Deploy ke server
-ssh YOUR_SERVER "cd /opt/nxt-1-astro && docker-compose pull && docker-compose up -d"
+# 3. Run quick deploy (pilih opsi 2 untuk website + monitoring)
+./scripts/quick-deploy.sh
+```
+
+### 🐳 Docker Commands
+
+```bash
+# Deploy website only
+docker-compose -f docker-compose.prod.yml up -d
+
+# Deploy dengan monitoring stack
+docker-compose -f docker-compose.full.yml up -d
+
+# Access services
+# Website:   http://localhost
+# Grafana:   http://localhost:3000 (admin/admin)
+# Prometheus: http://localhost:9090
+# Jaeger:    http://localhost:16686
 ```
 
 ### Auto Deploy dengan GitHub Actions
