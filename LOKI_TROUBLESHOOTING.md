@@ -1,371 +1,263 @@
-# 🔧 Loki Troubleshooting Guide
+# 🔧 Troubleshooting Loki
 
-Panduan lengkap untuk menyelesaikan masalah Loki yang tidak berjalan.
+Panduan troubleshooting untuk masalah Loki di nxt-1 astro monitoring stack.
 
----
+## ❌ Error: YAML Parsing Failed
 
-## ❌ Masalah Umum Loki
+### Error Message
+```
+failed parsing config: /etc/loki/local-config.yaml: yaml: unmarshal errors:
+  line 32: field shared_store not found in type boltdb.IndexCfg
+  line 37: field enforce_metric_name not found in type validation.plain
+  line 42: field max_look_back_period not found in type config.ChunkStoreConfig
+```
 
-### 1. Loki Not Running
+### Penyebab
+Konfigurasi Loki tidak compatible dengan versi Loki yang digunakan. Field-field tertentu hanya tersedia di versi tertentu.
 
-**Gejala:**
+### Solusi
+
+#### 1. Restart Loki dengan Konfigurasi Baru
 ```bash
-docker ps | grep loki
-# Tidak ada output
+# Stop Loki container
+docker-compose -f docker-compose.full.yml stop loki
+
+# Remove container lama
+docker-compose -f docker-compose.full.yml rm -f loki
+
+# Start ulang dengan konfigurasi baru
+docker-compose -f docker-compose.full.yml up -d loki
+
+# Check logs
+docker logs -f nxt-1-astro-loki
 ```
 
-**Penyebab:**
-- Container belum dibuat
-- Container crash saat start
-- Configuration error
-- Volume permission issues
-
-**Solusi:**
-
-#### Option 1: Gunakan Script Otomatis
+#### 2. Verify Konfigurasi
 ```bash
-chmod +x scripts/fix-loki.sh
-./scripts/fix-loki.sh
-```
+# Check file konfigurasi
+cat monitoring/loki.yml
 
-#### Option 2: Manual Fix
-```bash
-# Check container status
-docker ps -a | grep loki
-
-# View logs
-docker logs nxt-1-astro-loki
-
-# Restart Loki
-docker-compose -f docker-compose.full.yml restart loki
-
-# Recreate container
-docker-compose -f docker-compose.full.yml up -d --force-recreate loki
-```
-
----
-
-### 2. Loki Configuration Error
-
-**Gejala:**
-```
-level=error ts=... msg="error parsing config" err="yaml: unmarshal errors..."
-```
-
-**Penyebab:**
-- File `monitoring/loki.yml` tidak valid
-- Schema version tidak kompatibel
-- Storage configuration salah
-
-**Solusi:**
-
-#### Check Configuration
-```bash
-# Validate YAML
-yamllint monitoring/loki.yml
-
-# Or use Python
+# Validate YAML syntax
 python3 -c "import yaml; yaml.safe_load(open('monitoring/loki.yml'))"
 ```
 
-#### Fix Configuration
-File `monitoring/loki.yml` sudah diupdate ke format modern:
-- Schema v13 (latest)
-- TSDB storage (bukan boltdb-shipper)
-- Embedded cache enabled
-- Analytics disabled
-
-#### Recreate with New Config
+#### 3. Check Loki Version
 ```bash
+# Check versi Loki yang digunakan
+docker exec nxt-1-astro-loki loki --version
+```
+
+## ❌ Error: Loki Not Ready
+
+### Error Message
+```
+level=warn ts=... msg="waiting for service to be in RUNNING state" component=ring
+```
+
+### Penyebab
+Loki masih dalam proses startup atau ada masalah dengan ring/consensus.
+
+### Solusi
+```bash
+# Wait 30 seconds
+sleep 30
+
+# Check status
+curl http://localhost:3100/ready
+
+# Jika masih belum ready, restart
+docker-compose -f docker-compose.full.yml restart loki
+```
+
+## ❌ Error: Permission Denied
+
+### Error Message
+```
+mkdir /loki/chunks: permission denied
+```
+
+### Solusi
+```bash
+# Fix permissions
+docker exec -u root nxt-1-astro-loki chown -R 10001:10001 /loki
+
+# Restart
+docker-compose -f docker-compose.full.yml restart loki
+```
+
+## 🔍 Diagnostic Commands
+
+### Check Loki Status
+```bash
+# Container status
+docker ps | grep loki
+
+# Logs
+docker logs --tail 100 nxt-1-astro-loki
+
+# Health check
+curl http://localhost:3100/ready
+
+# Metrics
+curl http://localhost:3100/metrics
+```
+
+### Check Configuration
+```bash
+# View config
+docker exec nxt-1-astro-loki cat /etc/loki/local-config.yaml
+
+# Validate config
+docker exec nxt-1-astro-loki loki -config.file=/etc/loki/local-config.yaml -config.check
+```
+
+### Check Storage
+```bash
+# Check disk space
+docker exec nxt-1-astro-loki df -h /loki
+
+# List files
+docker exec nxt-1-astro-loki ls -la /loki
+```
+
+## 🔄 Reset Loki
+
+Jika Loki masih bermasalah, reset complete:
+
+```bash
+# Stop semua services yang depend on Loki
+docker-compose -f docker-compose.full.yml stop promtail loki
+
+# Remove containers
+docker-compose -f docker-compose.full.yml rm -f promtail loki
+
+# Remove volume (WARNING: akan hapus semua logs)
+docker volume rm nxt-1-astro_loki-data
+
+# Start ulang
+docker-compose -f docker-compose.full.yml up -d loki promtail
+
+# Wait dan verify
+sleep 30
+curl http://localhost:3100/ready
+```
+
+## 📊 Verify Loki Working
+
+### Test Push Logs
+```bash
+# Push test log
+curl -H "Content-Type: application/json" \
+  -XPOST http://localhost:3100/loki/api/v1/push \
+  -d '{"streams": [{"stream": {"job": "test"}, "values": [["$(date +%s)000000000", "Hello Loki!"]]}]}'
+
+# Query logs
+curl -G http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query={job="test"}'
+```
+
+### Check di Grafana
+1. Buka http://localhost:3001
+2. Login: admin / admin
+3. Go to Explore
+4. Select Loki data source
+5. Query: `{job="docker"}`
+6. Should see container logs
+
+## 📝 Konfigurasi Loki yang Benar
+
+File `monitoring/loki.yml` yang compatible dengan Loki 2.9.0:
+
+```yaml
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+  chunk_idle_period: 3m
+  chunk_block_size: 262144
+  chunk_retain_period: 1m
+  max_transfer_retries: 0
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/boltdb-shipper-active
+    cache_location: /loki/boltdb-shipper-cache
+    cache_ttl: 24h
+    shared_store: filesystem
+  filesystem:
+    directory: /loki/chunks
+
+limits_config:
+  enforce_metric_name: false
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+chunk_store_config:
+  max_look_back_period: 0s
+
+table_manager:
+  retention_deletes_enabled: false
+  retention_period: 0s
+```
+
+## 🎯 Quick Fix Script
+
+```bash
+#!/bin/bash
+# Quick fix untuk Loki
+
+echo "🔧 Fixing Loki..."
+
 # Stop Loki
 docker-compose -f docker-compose.full.yml stop loki
 
 # Remove container
 docker-compose -f docker-compose.full.yml rm -f loki
 
-# Start again
+# Start ulang
 docker-compose -f docker-compose.full.yml up -d loki
-```
 
----
-
-### 3. Loki Volume Permission Issues
-
-**Gejala:**
-```
-level=error ts=... msg="unable to create directory" dir=/loki/... err="permission denied"
-```
-
-**Penyebab:**
-- Volume owned by root
-- Loki container user tidak punya access
-
-**Solusi:**
-
-#### Fix Permissions
-```bash
-# Stop Loki
-docker-compose -f docker-compose.full.yml stop loki
-
-# Fix permissions
-docker run --rm -v loki-data:/loki alpine sh -c "chown -R 10001:10001 /loki"
-
-# Start Loki
-docker-compose -f docker-compose.full.yml start loki
-```
-
-#### Alternative: Run as Root
-File `docker-compose.full.yml` sudah diupdate dengan `user: root` untuk menghindari permission issues.
-
----
-
-### 4. Loki Port Already in Use
-
-**Gejala:**
-```
-Error starting userland proxy: listen tcp4 0.0.0.0:3100: bind: address already in use
-```
-
-**Penyebab:**
-- Port 3100 sudah digunakan service lain
-- Container lain menggunakan port yang sama
-
-**Solusi:**
-
-#### Check Port Usage
-```bash
-# Linux
-sudo lsof -i :3100
-sudo netstat -tuln | grep 3100
-
-# Mac
-lsof -i :3100
-```
-
-#### Stop Conflicting Service
-```bash
-# Stop service using port 3100
-sudo systemctl stop <service-name>
-
-# Or kill process
-sudo kill -9 <PID>
-```
-
-#### Use Different Port
-Edit `docker-compose.full.yml`:
-```yaml
-loki:
-  ports:
-    - "3101:3100"  # Change 3101 to available port
-```
-
-Update Promtail config (`monitoring/promtail.yml`):
-```yaml
-clients:
-  - url: http://loki:3100/loki/api/v1/push  # Keep internal port
-```
-
----
-
-### 5. Loki Not Ready
-
-**Gejala:**
-```bash
-curl http://localhost:3100/ready
-# Returns: "Service not ready"
-```
-
-**Penyebab:**
-- Loki masih starting up
-- Storage initialization lambat
-- Configuration error
-
-**Solusi:**
-
-#### Wait and Retry
-```bash
-# Wait 30 seconds
+# Wait
+echo "⏳ Waiting for Loki to start..."
 sleep 30
 
-# Check again
-curl http://localhost:3100/ready
+# Check
+if curl -s http://localhost:3100/ready | grep -q "ready"; then
+    echo "✅ Loki is ready!"
+else
+    echo "❌ Loki not ready. Check logs:"
+    docker logs --tail 50 nxt-1-astro-loki
+fi
 ```
 
-#### Check Logs
+Save as `fix-loki.sh` dan run:
 ```bash
-docker logs -f nxt-1-astro-loki
+chmod +x fix-loki.sh
+./fix-loki.sh
 ```
-
-#### Restart Loki
-```bash
-docker-compose -f docker-compose.full.yml restart loki
-```
-
----
-
-### 6. Promtail Cannot Connect to Loki
-
-**Gejala:**
-```
-level=error ts=... msg="error sending batch" err="Post \"http://loki:3100/loki/api/v1/push\": dial tcp: lookup loki: no such host"
-```
-
-**Penyebab:**
-- Loki container tidak running
-- Network issue
-- Container name salah
-
-**Solusi:**
-
-#### Check Loki Status
-```bash
-docker ps | grep loki
-```
-
-#### Check Network
-```bash
-# Check if containers are in same network
-docker network inspect nxt1-network | grep -E "(loki|promtail)"
-```
-
-#### Restart Both Services
-```bash
-docker-compose -f docker-compose.full.yml restart loki promtail
-```
-
----
-
-## 🛠️ Quick Fix Commands
-
-### Complete Reset
-```bash
-# Stop all monitoring services
-docker-compose -f docker-compose.full.yml stop loki promtail
-
-# Remove containers
-docker-compose -f docker-compose.full.yml rm -f loki promtail
-
-# Delete volume (WARNING: deletes all logs)
-docker volume rm loki-data
-
-# Recreate
-docker-compose -f docker-compose.full.yml up -d loki promtail
-```
-
-### View Logs
-```bash
-# Last 100 lines
-docker logs --tail 100 nxt-1-astro-loki
-
-# Follow logs
-docker logs -f nxt-1-astro-loki
-
-# Since timestamp
-docker logs --since 2024-01-01T00:00:00 nxt-1-astro-loki
-```
-
-### Check Health
-```bash
-# Ready check
-curl http://localhost:3100/ready
-
-# Metrics
-curl http://localhost:3100/metrics
-
-# Labels
-curl http://localhost:3100/loki/api/v1/labels
-
-# Query
-curl -G -s "http://localhost:3100/loki/api/v1/query" --data-urlencode 'query={job="docker"}'
-```
-
----
-
-## 📋 Checklist Troubleshooting
-
-### Sebelum Troubleshooting
-- [ ] Docker running
-- [ ] docker-compose.full.yml exists
-- [ ] monitoring/loki.yml exists
-- [ ] Port 3100 available
-- [ ] Disk space available
-
-### Saat Troubleshooting
-- [ ] Check container status: `docker ps -a | grep loki`
-- [ ] Check logs: `docker logs nxt-1-astro-loki`
-- [ ] Check health: `curl http://localhost:3100/ready`
-- [ ] Check port: `sudo lsof -i :3100`
-- [ ] Check volume: `docker volume ls | grep loki`
-
-### Setelah Fix
-- [ ] Loki running: `docker ps | grep loki`
-- [ ] Loki ready: `curl http://localhost:3100/ready`
-- [ ] Promtail connected: `docker logs nxt-1-astro-promtail`
-- [ ] Grafana can query: Check Grafana → Explore → Loki
-
----
-
-## 🔍 Debug Commands
-
-```bash
-# Inspect container
-docker inspect nxt-1-astro-loki
-
-# Execute command in container
-docker exec -it nxt-1-astro-loki /bin/sh
-
-# Check container logs with timestamps
-docker logs --timestamps nxt-1-astro-loki
-
-# Check resource usage
-docker stats nxt-1-astro-loki
-
-# Check network
-docker network inspect nxt1-network
-```
-
----
-
-## 🎯 Common Solutions
-
-### Solution 1: Update Configuration
-File `monitoring/loki.yml` sudah diupdate ke format modern dengan:
-- Schema v13 (latest stable)
-- TSDB storage engine
-- Embedded cache
-- Proper ring configuration
-
-### Solution 2: Fix Permissions
-```bash
-docker run --rm -v loki-data:/loki alpine sh -c "chown -R 10001:10001 /loki"
-```
-
-### Solution 3: Use Specific Version
-File `docker-compose.full.yml` sudah diupdate menggunakan:
-- `grafana/loki:2.9.0` (stable version)
-- `grafana/promtail:2.9.0` (matching version)
-
-### Solution 4: Health Checks
-File `docker-compose.full.yml` sudah diupdate dengan:
-- Healthcheck untuk Loki
-- `depends_on` dengan condition `service_healthy`
-- Promtail menunggu Loki ready
-
----
 
 ## 📞 Support
 
 Jika masih ada masalah:
-
-1. **Run troubleshooting script**: `./scripts/fix-loki.sh`
-2. **Check logs**: `docker logs nxt-1-astro-loki`
-3. **Check documentation**: [DOCKER_HUB_GUIDE.md](./DOCKER_HUB_GUIDE.md)
-4. **Create issue**: https://github.com/nexoraprod/nxt-1-astro/issues
-
----
-
-<div align="center">
-
-**Happy Troubleshooting! 🔧**
-
-</div>
+1. Check logs: `docker logs nxt-1-astro-loki`
+2. Verify config: `cat monitoring/loki.yml`
+3. Check version compatibility
+4. Reset volume jika perlu
