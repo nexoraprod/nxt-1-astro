@@ -74,30 +74,38 @@ services:
 
   # Loki - Log Aggregation
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:2.9.0
     container_name: nxt-1-astro-loki
+    user: root
     restart: unless-stopped
     ports:
       - "3100:3100"
     volumes:
-      - ./monitoring/loki.yml:/etc/loki/local-config.yaml
+      - ./monitoring/loki.yml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
     command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - nxt1-network
 
   # Promtail - Log Shipping
   promtail:
-    image: grafana/promtail:latest
+    image: grafana/promtail:2.9.0
     container_name: nxt-1-astro-promtail
     restart: unless-stopped
     volumes:
-      - ./monitoring/promtail.yml:/etc/promtail/config.yml
-      - /var/log:/var/log
+      - ./monitoring/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/config.yml
     depends_on:
-      - loki
+      loki:
+        condition: service_healthy
     networks:
       - nxt1-network
 

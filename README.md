@@ -576,6 +576,33 @@ git push --force origin main
 
 Lihat [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) untuk panduan lengkap.
 
+### 🔧 Loki Not Running?
+
+Jika Loki tidak berjalan di monitoring stack:
+
+1. **Gunakan Script Otomatis**:
+```bash
+chmod +x scripts/fix-loki.sh
+./scripts/fix-loki.sh
+```
+
+2. **Manual Fix**:
+```bash
+# Check status
+docker ps -a | grep loki
+
+# View logs
+docker logs nxt-1-astro-loki
+
+# Restart
+docker-compose -f docker-compose.full.yml restart loki
+
+# Recreate
+docker-compose -f docker-compose.full.yml up -d --force-recreate loki
+```
+
+3. **Check Documentation**: [LOKI_TROUBLESHOOTING.md](./LOKI_TROUBLESHOOTING.md)
+
 ---
 
 ## 📧 Contact
