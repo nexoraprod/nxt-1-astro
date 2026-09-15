@@ -2551,28 +2551,136 @@ function FeaturesSection() {
 
 // ============ QUICK START SECTION ============
 function QuickStartSection() {
-  const setupCode = `# Install dependencies
-pip install torch torchvision flask
+  const [activePath, setActivePath] = useState<'beginner' | 'intermediate' | 'advanced' | 'production'>('beginner');
 
-# Jalankan training
-python train.py
+  const beginnerCode = `# 🚀 QUICK START: PEMULA (5 menit)
+# Cocok untuk: Belajar dasar-dasar AI
 
-# Jalankan server API
-python server.py
+# 1. Install dependencies
+pip install torch transformers
 
-# Test dengan curl
-curl -X POST http://localhost:8080/v1/chat/completions \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "messages": [
-      {"role": "user", "content": "Apa itu kecerdasan buatan?"}
-    ],
-    "temperature": 0.7
-  }'`;
+# 2. Clone repository
+git clone https://github.com/nexoraprod/nxt-1-astro.git
+cd nxt-1-astro
+
+# 3. Jalankan prototipe sederhana
+python examples/quick_start.py
+
+# Output:
+# ✅ Model loaded (10M parameters)
+# ✅ Generated: "Model AI adalah program yang belajar dari data..."
+
+# 4. Eksperimen dengan parameter
+python examples/quick_start.py --temperature 0.8 --max_tokens 100`;
+
+  const intermediateCode = `# 🎯 QUICK START: MENENGAH (30 menit)
+# Cocok untuk: Fine-tuning model open-source
+
+# 1. Install dependencies lengkap
+pip install torch transformers accelerate bitsandbytes
+pip install peft trl datasets
+
+# 2. Download model base (LLaMA 3 8B)
+huggingface-cli download meta-llama/Meta-Llama-3-8B
+
+# 3. Fine-tune dengan LoRA (butuh 1 GPU 16GB)
+python scripts/finetune_lora.py \\
+  --model meta-llama/Meta-Llama-3-8B \\
+  --dataset tatsu-lab/alpaca \\
+  --output_dir ./my-model \\
+  --lora_r 16 \\
+  --epochs 3
+
+# 4. Test model yang sudah di-fine-tune
+python scripts/test_model.py \\
+  --model ./my-model \\
+  --prompt "Jelaskan machine learning"
+
+# 5. Export untuk deployment
+python scripts/export_model.py \\
+  --model ./my-model \\
+  --format gguf \\
+  --quantization q4_k_m`;
+
+  const advancedCode = `# ⚡ QUICK START: LANJUTAN (2-4 jam)
+# Cocok untuk: Training model dari awal
+
+# 1. Setup environment dengan Docker
+docker-compose -f docker-compose.dev.yml up -d
+
+# 2. Prepare dataset (10GB+ recommended)
+python scripts/prepare_data.py \\
+  --input ./raw_data \\
+  --output ./processed_data \\
+  --vocab_size 50000
+
+# 3. Train model kecil (125M parameters, butuh 1 GPU 24GB)
+python scripts/train.py \\
+  --config configs/small_model.yaml \\
+  --data ./processed_data \\
+  --output_dir ./checkpoints
+
+# 4. Monitor training dengan TensorBoard
+tensorboard --logdir ./checkpoints/logs
+
+# 5. Evaluate model
+python scripts/evaluate.py \\
+  --model ./checkpoints/best_model.pt \\
+  --benchmarks mmlu,hellaswag,arc
+
+# 6. Deploy dengan vLLM
+python scripts/deploy_vllm.py \\
+  --model ./checkpoints/best_model.pt \\
+  --port 8000`;
+
+  const productionCode = `# 🏭 QUICK START: PRODUCTION (1-2 hari)
+# Cocok untuk: Deploy ke production
+
+# 1. Setup server dengan Docker
+ssh user@your-server
+git clone https://github.com/nexoraprod/nxt-1-astro.git
+cd nxt-1-astro
+
+# 2. Build Docker image
+docker build -t nxt-1-astro:latest .
+
+# 3. Setup monitoring & observability
+docker-compose -f docker-compose.prod.yml up -d
+
+# Services yang berjalan:
+# - nxt-1-astro (model server)
+# - prometheus (metrics)
+# - grafana (dashboards)
+# - jaeger (tracing)
+
+# 4. Apply optimizations
+python scripts/optimize.py \\
+  --enable-flash-attention \\
+  --enable-continuous-batching \\
+  --quantization 4-bit \\
+  --max-batch-size 256
+
+# 5. Load test
+python scripts/load_test.py \\
+  --url http://localhost:8000/v1/chat \\
+  --concurrency 100 \\
+  --duration 300
+
+# 6. Monitor dengan Grafana
+# Buka http://your-server:3000
+# Dashboard: nxt-1-astro-production`;
+
+  const paths = [
+    { id: 'beginner', label: 'Pemula', time: '5 menit', icon: '🌱', color: 'green' },
+    { id: 'intermediate', label: 'Menengah', time: '30 menit', icon: '🎯', color: 'blue' },
+    { id: 'advanced', label: 'Lanjutan', time: '2-4 jam', icon: '⚡', color: 'purple' },
+    { id: 'production', label: 'Production', time: '1-2 hari', icon: '🏭', color: 'orange' },
+  ];
 
   return (
     <section id="quickstart" className="py-24 relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-emerald-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -2580,14 +2688,109 @@ curl -X POST http://localhost:8080/v1/chat/completions \\
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Setup Cepat 📦
+            Panduan Memulai Cepat 🚀
           </h2>
-          <p className="text-gray-400 max-w-2xl mx-auto">
-            Jalankan prototipe nxt-1 astro dalam hitungan menit
+          <p className="text-gray-400 max-w-3xl mx-auto">
+            Pilih learning path sesuai level Anda — dari pemula hingga production-ready
           </p>
         </motion.div>
 
-        <CodeBlock code={setupCode} title="setup.sh" />
+        {/* Prerequisites */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mb-12 p-6 rounded-2xl bg-gray-900/50 border border-gray-800/50"
+        >
+          <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-emerald-400" />
+            Prerequisites
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <h4 className="text-emerald-400 font-semibold text-sm mb-2">🖥️ Hardware</h4>
+              <ul className="text-gray-400 text-xs space-y-1">
+                <li>• CPU: 4+ cores</li>
+                <li>• RAM: 16GB+ (32GB recommended)</li>
+                <li>• GPU: NVIDIA 8GB+ (untuk training)</li>
+                <li>• Storage: 50GB+ SSD</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-emerald-400 font-semibold text-sm mb-2">💻 Software</h4>
+              <ul className="text-gray-400 text-xs space-y-1">
+                <li>• Python 3.10+</li>
+                <li>• CUDA 12.1+ (untuk GPU)</li>
+                <li>• Git</li>
+                <li>• Docker (optional)</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-emerald-400 font-semibold text-sm mb-2">📚 Knowledge</h4>
+              <ul className="text-gray-400 text-xs space-y-1">
+                <li>• Basic Python</li>
+                <li>• Linear algebra basics</li>
+                <li>• Machine learning concepts</li>
+                <li>• Command line</li>
+              </ul>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Learning Paths */}
+        <div className="flex flex-wrap gap-2 mb-6 justify-center">
+          {paths.map(path => (
+            <button
+              key={path.id}
+              onClick={() => setActivePath(path.id as any)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all ${
+                activePath === path.id
+                  ? `bg-${path.color}-600 text-white`
+                  : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'
+              }`}
+            >
+              <span className="text-xl">{path.icon}</span>
+              <div className="text-left">
+                <div className="text-sm font-medium">{path.label}</div>
+                <div className="text-xs opacity-75">{path.time}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Code Display */}
+        <motion.div
+          key={activePath}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {activePath === 'beginner' && <CodeBlock code={beginnerCode} title="quick_start_beginner.sh" />}
+          {activePath === 'intermediate' && <CodeBlock code={intermediateCode} title="quick_start_intermediate.sh" />}
+          {activePath === 'advanced' && <CodeBlock code={advancedCode} title="quick_start_advanced.sh" />}
+          {activePath === 'production' && <CodeBlock code={productionCode} title="quick_start_production.sh" />}
+        </motion.div>
+
+        {/* Time Estimates */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+        >
+          {[
+            { phase: 'Setup Environment', time: '5-10 menit', tasks: 'Install Python, CUDA, dependencies', color: 'green' },
+            { phase: 'Download Model', time: '10-30 menit', tasks: 'Download base model dari HuggingFace', color: 'blue' },
+            { phase: 'Fine-tune/Test', time: '30 menit - 4 jam', tasks: 'Training atau inference testing', color: 'purple' },
+            { phase: 'Deploy', time: '1-2 jam', tasks: 'Setup server, monitoring, optimization', color: 'orange' },
+          ].map((item, i) => (
+            <div key={i} className={`p-5 rounded-xl bg-${item.color}-500/10 border border-${item.color}-500/20`}>
+              <div className={`text-${item.color}-400 font-semibold text-sm mb-1`}>{item.phase}</div>
+              <div className="text-white font-bold text-lg mb-2">{item.time}</div>
+              <div className="text-gray-400 text-xs">{item.tasks}</div>
+            </div>
+          ))}
+        </motion.div>
 
         {/* Important notes */}
         <motion.div
@@ -2619,6 +2822,55 @@ curl -X POST http://localhost:8080/v1/chat/completions \\
                   daripada melatih dari nol. Gunakan HuggingFace + Unsloth.
                 </p>
               </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Next Steps */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-12 p-6 rounded-2xl bg-gray-900/50 border border-gray-800/50"
+        >
+          <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <ArrowRight className="w-5 h-5 text-emerald-400" />
+            Next Steps
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h4 className="text-emerald-400 font-semibold text-sm mb-2">Setelah Quick Start:</h4>
+              <ul className="text-gray-400 text-sm space-y-2">
+                <li className="flex items-start gap-2">
+                  <ChevronRight className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <span>Pelajari arsitektur Transformer di section <strong>Arsitektur</strong></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ChevronRight className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <span>Coba fine-tuning di section <strong>Fine-Tuning</strong></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ChevronRight className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <span>Implementasi RAG di section <strong>RAG</strong></span>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-emerald-400 font-semibold text-sm mb-2">Untuk Production:</h4>
+              <ul className="text-gray-400 text-sm space-y-2">
+                <li className="flex items-start gap-2">
+                  <ChevronRight className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <span>Setup monitoring di section <strong>Monitoring</strong></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ChevronRight className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <span>Optimasi inferensi di section <strong>Optimasi Inferensi</strong></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ChevronRight className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <span>Deploy dengan Docker di section <strong>Deploy</strong></span>
+                </li>
+              </ul>
             </div>
           </div>
         </motion.div>
