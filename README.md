@@ -527,13 +527,23 @@ docker-compose -f docker-compose.full.yml up -d
 
 ### Auto Deploy dengan GitHub Actions
 
-Setup GitHub secrets:
-- `DOCKERHUB_USERNAME` - Username Docker Hub
-- `DOCKERHUB_TOKEN` - Access Token Docker Hub
-- `SERVER_HOST` - IP server
+Setup GitHub secrets di repository settings:
+
+**Untuk Docker Build & Push:**
+- `DOCKERHUB_USERNAME` - Username Docker Hub Anda
+- `DOCKERHUB_TOKEN` - Access Token dari Docker Hub (bukan password)
+
+**Untuk Auto Deploy ke Server:**
+- `SERVER_HOST` - IP address atau domain server
 - `SERVER_USERNAME` - Username SSH
-- `SERVER_SSH_KEY` - Private SSH key
-- `SERVER_PATH` - `/opt/nxt-1-astro`
+- `SERVER_SSH_KEY` - Private SSH key (full content)
+- `SERVER_PORT` - Port SSH (default: 22)
+- `SERVER_PATH` - Path deployment (default: `/opt/nxt-1-astro`)
+
+**Catatan:**
+- Jika secrets tidak dikonfigurasi, workflow akan skip job yang memerlukan credentials
+- Workflow akan tetap build dan test code tanpa error
+- Lihat **[GITHUB_ACTIONS_CONFIG.md](./GITHUB_ACTIONS_CONFIG.md)** untuk panduan lengkap
 
 Setiap push ke `main` branch akan auto deploy! 🚀
 
