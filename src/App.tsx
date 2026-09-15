@@ -23,6 +23,7 @@ function Navigation() {
     { href: '#evaluation', label: 'Evaluasi' },
     { href: '#safety', label: 'Safety' },
     { href: '#monitoring', label: 'Monitoring' },
+    { href: '#observability', label: 'Observability' },
     { href: '#optimization', label: 'Optimasi' },
     { href: '#roadmap', label: 'Roadmap' },
     { href: '#deployment', label: 'Deploy' },
@@ -5614,6 +5615,1251 @@ function Footer() {
   );
 }
 
+// ============ OBSERVABILITY SECTION (BAGIAN D) ============
+function ObservabilitySection() {
+  const [activeTab, setActiveTab] = useState<'tracing' | 'logging' | 'drift' | 'ab' | 'audit' | 'profiling'>('tracing');
+
+  const tracingCode = `# BAGIAN D.1: Distributed Tracing dengan OpenTelemetry
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.torch import TorchInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.semconv.resource import ResourceAttributes
+import time
+
+# Setup OpenTelemetry
+resource = Resource.create({
+    ResourceAttributes.SERVICE_NAME: "nxt-1-astro",
+    ResourceAttributes.SERVICE_VERSION: "1.0.0",
+    ResourceAttributes.DEPLOYMENT_ENVIRONMENT: "production"
+})
+
+provider = TracerProvider(resource=resource)
+exporter = OTLPSpanExporter(endpoint="http://jaeger:4317", insecure=True)
+processor = BatchSpanProcessor(exporter)
+provider.add_span_processor(processor)
+trace.set_tracer_provider(provider)
+
+tracer = trace.get_tracer(__name__)
+
+# Instrumentasi otomatis
+FastAPIInstrumentor.instrument_app(app)
+TorchInstrumentor().instrument()
+
+class TracedInference:
+    """Wrapper untuk inference dengan tracing"""
+    
+    def __init__(self, model, tokenizer):
+        self.model = model
+        self.tokenizer = tokenizer
+    
+    @tracer.start_as_current_span("model.inference")
+    def generate(self, prompt: str, **kwargs):
+        span = trace.get_current_span()
+        span.set_attribute("prompt.length", len(prompt))
+        span.set_attribute("model.name", "nxt-1-astro")
+        
+        # Tokenization span
+        with tracer.start_as_current_span("tokenization") as token_span:
+            inputs = self.tokenizer(prompt, return_tensors="pt")
+            token_span.set_attribute("tokens.input_count", inputs['input_ids'].shape[1])
+        
+        # Generation span
+        with tracer.start_as_current_span("generation") as gen_span:
+            start_time = time.time()
+            outputs = self.model.generate(**inputs, **kwargs)
+            duration = time.time() - start_time
+            
+            gen_span.set_attribute("tokens.output_count", outputs.shape[1])
+            gen_span.set_attribute("generation.duration_ms", duration * 1000)
+            gen_span.set_attribute("generation.tokens_per_second", 
+                                  outputs.shape[1] / duration)
+        
+        # Decoding span
+        with tracer.start_as_current_span("decoding"):
+            result = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        span.set_attribute("response.length", len(result))
+        return result
+
+# Custom span untuk RAG pipeline
+@tracer.start_as_current_span("rag.pipeline")
+def rag_pipeline(query: str):
+    span = trace.get_current_span()
+    
+    # Retrieval
+    with tracer.start_as_current_span("rag.retrieval") as ret_span:
+        documents = retriever.retrieve(query, top_k=5)
+        ret_span.set_attribute("rag.documents_retrieved", len(documents))
+    
+    # Augmentation
+    with tracer.start_as_current_span("rag.augmentation"):
+        augmented_prompt = augment_with_context(query, documents)
+    
+    # Generation
+    with tracer.start_as_current_span("rag.generation"):
+        response = traced_inference.generate(augmented_prompt)
+    
+    span.set_attribute("rag.response_length", len(response))
+    return response
+
+# Jaeger Query untuk visualize traces
+# http://localhost:16686/search`;
+
+  const loggingCode = `# BAGIAN D.2: Centralized Logging dengan ELK Stack & Loki
+import logging
+import json
+from datetime import datetime
+from pythonjsonlogger import jsonlogger
+import requests
+from elasticsearch import Elasticsearch
+from typing import Dict, Any
+
+# Setup JSON Logger
+class CustomJsonFormatter(jsonlogger.JsonFormatter):
+    def add_fields(self, log_record, record, message_dict):
+        super().add_fields(log_record, record, message_dict)
+        log_record['timestamp'] = datetime.utcnow().isoformat()
+        log_record['level'] = record.levelname
+        log_record['logger'] = record.name
+        log_record['service'] = 'nxt-1-astro'
+
+# Configure logger
+logger = logging.getLogger('nxt-1-astro')
+handler = logging.StreamHandler()
+formatter = CustomJsonFormatter()
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+# Elasticsearch logging
+class ElasticsearchLogger:
+    def __init__(self, es_host='http://elasticsearch:9200'):
+        self.es = Elasticsearch([es_host])
+        self.index_prefix = 'nxt-1-astro-logs'
+    
+    def log_request(self, request_data: Dict[str, Any]):
+        """Log request ke Elasticsearch"""
+        doc = {
+            '@timestamp': datetime.utcnow().isoformat(),
+            'type': 'request',
+            'request_id': request_data.get('request_id'),
+            'user_id': request_data.get('user_id'),
+            'prompt': request_data.get('prompt'),
+            'prompt_length': len(request_data.get('prompt', '')),
+            'max_tokens': request_data.get('max_tokens'),
+            'temperature': request_data.get('temperature'),
+            'ip_address': request_data.get('ip_address'),
+            'user_agent': request_data.get('user_agent')
+        }
+        
+        self.es.index(
+            index=f"{self.index_prefix}-requests-{datetime.now().strftime('%Y.%m')}",
+            body=doc
+        )
+    
+    def log_response(self, response_data: Dict[str, Any]):
+        """Log response ke Elasticsearch"""
+        doc = {
+            '@timestamp': datetime.utcnow().isoformat(),
+            'type': 'response',
+            'request_id': response_data.get('request_id'),
+            'response': response_data.get('response'),
+            'tokens_generated': response_data.get('tokens_generated'),
+            'finish_reason': response_data.get('finish_reason'),
+            'latency_ms': response_data.get('latency_ms'),
+            'status_code': response_data.get('status_code')
+        }
+        
+        self.es.index(
+            index=f"{self.index_prefix}-responses-{datetime.now().strftime('%Y.%m')}",
+            body=doc
+        )
+    
+    def log_error(self, error_data: Dict[str, Any]):
+        """Log error ke Elasticsearch"""
+        doc = {
+            '@timestamp': datetime.utcnow().isoformat(),
+            'type': 'error',
+            'request_id': error_data.get('request_id'),
+            'error_type': error_data.get('error_type'),
+            'error_message': error_data.get('error_message'),
+            'stack_trace': error_data.get('stack_trace'),
+            'severity': error_data.get('severity', 'error')
+        }
+        
+        self.es.index(
+            index=f"{self.index_prefix}-errors-{datetime.now().strftime('%Y.%m')}",
+            body=doc
+        )
+
+# Loki logging (lightweight alternative)
+class LokiLogger:
+    def __init__(self, loki_url='http://loki:3100/loki/api/v1/push'):
+        self.loki_url = loki_url
+        self.labels = {
+            'service': 'nxt-1-astro',
+            'environment': 'production'
+        }
+    
+    def push_log(self, message: str, labels: Dict[str, str] = None):
+        """Push log ke Loki"""
+        all_labels = {**self.labels, **(labels or {})}
+        
+        payload = {
+            'streams': [{
+                'stream': all_labels,
+                'values': [[str(int(datetime.now().timestamp() * 1e9)), message]]
+            }]
+        }
+        
+        requests.post(self.loki_url, json=payload)
+
+# Structured logging examples
+def log_inference_request(request_id: str, user_id: str, prompt: str):
+    logger.info('Inference request received', extra={
+        'request_id': request_id,
+        'user_id': user_id,
+        'prompt_length': len(prompt),
+        'event': 'inference.request'
+    })
+
+def log_inference_response(request_id: str, tokens: int, latency_ms: float):
+    logger.info('Inference completed', extra={
+        'request_id': request_id,
+        'tokens_generated': tokens,
+        'latency_ms': latency_ms,
+        'tokens_per_second': tokens / (latency_ms / 1000),
+        'event': 'inference.response'
+    })
+
+# Kibana dashboard queries
+# GET /nxt-1-astro-logs-*/_search
+# {
+#   "query": {
+#     "bool": {
+#       "must": [
+#         {"match": {"type": "request"}},
+#         {"range": {"@timestamp": {"gte": "now-1h"}}}
+#       ]
+#     }
+#   }
+# }`;
+
+  const driftCode = `# BAGIAN D.3: Model Drift Detection
+import numpy as np
+from scipy import stats
+from sklearn.metrics import pairwise_distances
+import pandas as pd
+from datetime import datetime, timedelta
+from typing import List, Dict
+import joblib
+
+class ModelDriftDetector:
+    """Deteksi drift pada model AI"""
+    
+    def __init__(self, reference_data: np.ndarray, window_size: int = 1000):
+        self.reference_data = reference_data
+        self.window_size = window_size
+        self.data_window = []
+        self.drift_threshold = 0.1
+        self.alerts = []
+    
+    def add_data_point(self, embedding: np.ndarray):
+        """Tambah data point baru ke window"""
+        self.data_window.append(embedding)
+        
+        if len(self.data_window) > self.window_size:
+            self.data_window.pop(0)
+        
+        # Check drift setiap 100 data points
+        if len(self.data_window) % 100 == 0:
+            self.check_drift()
+    
+    def check_drift(self):
+        """Check untuk drift menggunakan berbagai metode"""
+        if len(self.data_window) < 100:
+            return
+        
+        current_data = np.array(self.data_window)
+        
+        # Method 1: Population Stability Index (PSI)
+        psi = self._calculate_psi(self.reference_data, current_data)
+        
+        # Method 2: Kolmogorov-Smirnov test
+        ks_stat, ks_pvalue = self._ks_test(self.reference_data, current_data)
+        
+        # Method 3: Maximum Mean Discrepancy (MMD)
+        mmd = self._calculate_mmd(self.reference_data, current_data)
+        
+        # Method 4: Feature drift per dimension
+        feature_drifts = self._check_feature_drift(self.reference_data, current_data)
+        
+        drift_report = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'psi': psi,
+            'ks_statistic': ks_stat,
+            'ks_pvalue': ks_pvalue,
+            'mmd': mmd,
+            'feature_drifts': feature_drifts,
+            'drift_detected': psi > self.drift_threshold or ks_pvalue < 0.05,
+            'severity': self._calculate_severity(psi, ks_pvalue)
+        }
+        
+        if drift_report['drift_detected']:
+            self.alerts.append(drift_report)
+            self._send_alert(drift_report)
+        
+        return drift_report
+    
+    def _calculate_psi(self, expected: np.ndarray, actual: np.ndarray) -> float:
+        """Calculate Population Stability Index"""
+        # Bin data into 10 buckets
+        breakpoints = np.quantile(expected, np.linspace(0, 1, 11))
+        
+        expected_counts = np.histogram(expected, bins=breakpoints)[0]
+        actual_counts = np.histogram(actual, bins=breakpoints)[0]
+        
+        # Convert to percentages
+        expected_pct = expected_counts / len(expected)
+        actual_pct = actual_counts / len(actual)
+        
+        # Calculate PSI
+        psi = np.sum((actual_pct - expected_pct) * np.log(actual_pct / (expected_pct + 1e-10)))
+        
+        return psi
+    
+    def _ks_test(self, expected: np.ndarray, actual: np.ndarray):
+        """Kolmogorov-Smirnov test"""
+        # Flatten arrays for comparison
+        expected_flat = expected.flatten()
+        actual_flat = actual.flatten()
+        
+        # Sample if too large
+        if len(expected_flat) > 10000:
+            expected_flat = np.random.choice(expected_flat, 10000, replace=False)
+        if len(actual_flat) > 10000:
+            actual_flat = np.random.choice(actual_flat, 10000, replace=False)
+        
+        return stats.ks_2samp(expected_flat, actual_flat)
+    
+    def _calculate_mmd(self, expected: np.ndarray, actual: np.ndarray) -> float:
+        """Maximum Mean Discrepancy with RBF kernel"""
+        def rbf_kernel(x, y, gamma=1.0):
+            dists = pairwise_distances(x, y, metric='euclidean')
+            return np.exp(-gamma * dists ** 2)
+        
+        K_xx = rbf_kernel(expected, expected)
+        K_yy = rbf_kernel(actual, actual)
+        K_xy = rbf_kernel(expected, actual)
+        
+        mmd = (K_xx.mean() + K_yy.mean() - 2 * K_xy.mean())
+        return np.sqrt(max(0, mmd))
+    
+    def _check_feature_drift(self, expected: np.ndarray, actual: np.ndarray) -> List[Dict]:
+        """Check drift per feature dimension"""
+        drifts = []
+        
+        for i in range(expected.shape[1]):
+            stat, pvalue = stats.ks_2samp(expected[:, i], actual[:, i])
+            
+            drifts.append({
+                'feature_index': i,
+                'ks_statistic': stat,
+                'pvalue': pvalue,
+                'drift_detected': pvalue < 0.05,
+                'mean_diff': abs(actual[:, i].mean() - expected[:, i].mean()),
+                'std_diff': abs(actual[:, i].std() - expected[:, i].std())
+            })
+        
+        return drifts
+    
+    def _calculate_severity(self, psi: float, ks_pvalue: float) -> str:
+        """Calculate drift severity"""
+        if psi > 0.2 or ks_pvalue < 0.01:
+            return 'critical'
+        elif psi > 0.1 or ks_pvalue < 0.05:
+            return 'warning'
+        else:
+            return 'normal'
+    
+    def _send_alert(self, drift_report: Dict):
+        """Send alert to monitoring system"""
+        alert = {
+            'alert_type': 'model_drift',
+            'severity': drift_report['severity'],
+            'message': f"Model drift detected! PSI: {drift_report['psi']:.4f}",
+            'details': drift_report
+        }
+        
+        # Send to Slack, PagerDuty, etc.
+        # requests.post(webhook_url, json=alert)
+        print(f"🚨 DRIFT ALERT: {alert['message']}")
+
+# Output drift detection
+class OutputDriftDetector:
+    """Deteksi drift pada output model"""
+    
+    def __init__(self, reference_outputs: List[str]):
+        self.reference_outputs = reference_outputs
+        self.output_history = []
+        self.window_size = 500
+    
+    def add_output(self, output: str, metadata: Dict = None):
+        """Tambah output baru"""
+        self.output_history.append({
+            'output': output,
+            'length': len(output),
+            'timestamp': datetime.utcnow().isoformat(),
+            'metadata': metadata or {}
+        })
+        
+        if len(self.output_history) > self.window_size:
+            self.output_history.pop(0)
+    
+    def check_output_drift(self) -> Dict:
+        """Check drift pada output characteristics"""
+        if len(self.output_history) < 100:
+            return {'drift_detected': False}
+        
+        # Analyze output characteristics
+        lengths = [item['length'] for item in self.output_history]
+        ref_lengths = [len(out) for out in self.reference_outputs]
+        
+        # Statistical tests
+        length_stat, length_pvalue = stats.ks_2samp(ref_lengths, lengths)
+        
+        # Check for unusual patterns
+        avg_length = np.mean(lengths)
+        ref_avg_length = np.mean(ref_lengths)
+        length_change_pct = abs(avg_length - ref_avg_length) / ref_avg_length
+        
+        return {
+            'drift_detected': length_pvalue < 0.05 or length_change_pct > 0.2,
+            'length_pvalue': length_pvalue,
+            'length_change_pct': length_change_pct,
+            'avg_length': avg_length,
+            'ref_avg_length': ref_avg_length
+        }
+
+# Usage
+# detector = ModelDriftDetector(reference_embeddings)
+# detector.add_data_point(new_embedding)
+# drift_report = detector.check_drift()`;
+
+  const abCode = `# BAGIAN D.4: A/B Testing & Feature Flags
+from typing import Dict, List, Optional
+import hashlib
+import json
+from datetime import datetime
+import numpy as np
+from scipy import stats
+
+class FeatureFlagManager:
+    """Manajemen feature flags untuk A/B testing"""
+    
+    def __init__(self):
+        self.flags: Dict[str, Dict] = {}
+        self.load_flags()
+    
+    def load_flags(self):
+        """Load flags dari database/config"""
+        self.flags = {
+            'new_model_v2': {
+                'enabled': True,
+                'rollout_percentage': 50,
+                'description': 'Model v2 dengan arsitektur baru',
+                'target_groups': ['beta_users', 'premium']
+            },
+            'speculative_decoding': {
+                'enabled': True,
+                'rollout_percentage': 30,
+                'description': 'Speculative decoding untuk speed up',
+                'target_groups': ['all']
+            },
+            'rag_enhanced': {
+                'enabled': True,
+                'rollout_percentage': 100,
+                'description': 'Enhanced RAG pipeline',
+                'target_groups': ['all']
+            }
+        }
+    
+    def is_enabled(self, flag_name: str, user_id: str = None, 
+                   user_groups: List[str] = None) -> bool:
+        """Check if feature flag is enabled for user"""
+        if flag_name not in self.flags:
+            return False
+        
+        flag = self.flags[flag_name]
+        
+        if not flag['enabled']:
+            return False
+        
+        # Check target groups
+        if user_groups:
+            if 'all' not in flag['target_groups']:
+                if not any(group in flag['target_groups'] for group in user_groups):
+                    return False
+        
+        # Check rollout percentage with consistent hashing
+        if user_id and flag['rollout_percentage'] < 100:
+            hash_value = int(hashlib.md5(
+                f"{user_id}:{flag_name}".encode()
+            ).hexdigest(), 16)
+            bucket = hash_value % 100
+            
+            if bucket >= flag['rollout_percentage']:
+                return False
+        
+        return True
+
+class ABTestManager:
+    """A/B Testing manager untuk model comparison"""
+    
+    def __init__(self):
+        self.experiments: Dict[str, Dict] = {}
+        self.results: Dict[str, List[Dict]] = {}
+    
+    def create_experiment(self, experiment_id: str, 
+                         variants: List[Dict],
+                         traffic_split: List[float]):
+        """Create new A/B test experiment"""
+        assert len(variants) == len(traffic_split)
+        assert abs(sum(traffic_split) - 1.0) < 0.01
+        
+        self.experiments[experiment_id] = {
+            'variants': variants,
+            'traffic_split': traffic_split,
+            'start_time': datetime.utcnow().isoformat(),
+            'status': 'running'
+        }
+        
+        self.results[experiment_id] = []
+    
+    def assign_variant(self, experiment_id: str, user_id: str) -> Dict:
+        """Assign user to variant"""
+        experiment = self.experiments[experiment_id]
+        
+        # Consistent hashing for assignment
+        hash_value = int(hashlib.md5(
+            f"{user_id}:{experiment_id}".encode()
+        ).hexdigest(), 16)
+        
+        bucket = (hash_value % 10000) / 10000.0
+        
+        cumulative = 0
+        for i, split in enumerate(experiment['traffic_split']):
+            cumulative += split
+            if bucket < cumulative:
+                return experiment['variants'][i]
+        
+        return experiment['variants'][-1]
+    
+    def record_result(self, experiment_id: str, user_id: str,
+                     variant: str, metrics: Dict):
+        """Record experiment result"""
+        result = {
+            'user_id': user_id,
+            'variant': variant,
+            'metrics': metrics,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+        self.results[experiment_id].append(result)
+    
+    def analyze_results(self, experiment_id: str) -> Dict:
+        """Analyze A/B test results"""
+        results = self.results[experiment_id]
+        
+        if len(results) < 100:
+            return {'status': 'insufficient_data', 'samples': len(results)}
+        
+        # Group by variant
+        variant_results = {}
+        for result in results:
+            variant = result['variant']
+            if variant not in variant_results:
+                variant_results[variant] = []
+            variant_results[variant].append(result['metrics'])
+        
+        # Statistical analysis
+        analysis = {}
+        variants = list(variant_results.keys())
+        
+        for metric in ['latency_ms', 'tokens_per_second', 'user_satisfaction']:
+            metric_values = {}
+            for variant in variants:
+                values = [r.get(metric, 0) for r in variant_results[variant]]
+                metric_values[variant] = values
+            
+            # T-test between variants
+            if len(variants) == 2:
+                t_stat, p_value = stats.ttest_ind(
+                    metric_values[variants[0]],
+                    metric_values[variants[1]]
+                )
+                
+                analysis[metric] = {
+                    'variant_means': {v: np.mean(vals) for v, vals in metric_values.items()},
+                    'variant_stds': {v: np.std(vals) for v, vals in metric_values.items()},
+                    't_statistic': t_stat,
+                    'p_value': p_value,
+                    'significant': p_value < 0.05,
+                    'confidence': 1 - p_value
+                }
+        
+        return {
+            'status': 'completed',
+            'total_samples': len(results),
+            'samples_per_variant': {v: len(vals) for v, vals in variant_results.items()},
+            'analysis': analysis
+        }
+
+# Model version manager
+class ModelVersionManager:
+    """Manage multiple model versions for A/B testing"""
+    
+    def __init__(self):
+        self.models: Dict[str, any] = {}
+        self.ab_manager = ABTestManager()
+        self.feature_flags = FeatureFlagManager()
+    
+    def register_model(self, version: str, model, metadata: Dict = None):
+        """Register new model version"""
+        self.models[version] = {
+            'model': model,
+            'metadata': metadata or {},
+            'registered_at': datetime.utcnow().isoformat()
+        }
+    
+    def get_model_for_user(self, user_id: str, user_groups: List[str] = None):
+        """Get appropriate model version for user"""
+        # Check feature flags first
+        if self.feature_flags.is_enabled('new_model_v2', user_id, user_groups):
+            if 'v2' in self.models:
+                return self.models['v2']['model']
+        
+        # Check A/B test
+        if 'model_ab_test' in self.ab_manager.experiments:
+            variant = self.ab_manager.assign_variant('model_ab_test', user_id)
+            version = variant.get('model_version', 'v1')
+            if version in self.models:
+                return self.models[version]['model']
+        
+        # Default model
+        return self.models['v1']['model']
+
+# Usage
+# ab_manager = ABTestManager()
+# ab_manager.create_experiment(
+#     experiment_id='model_ab_test',
+#     variants=[
+#         {'model_version': 'v1', 'name': 'Control'},
+#         {'model_version': 'v2', 'name': 'Treatment'}
+#     ],
+#     traffic_split=[0.5, 0.5]
+# )
+# 
+# # Get model for user
+# model = model_manager.get_model_for_user(user_id='user123')
+# response = model.generate(prompt)
+# 
+# # Record result
+# ab_manager.record_result(
+#     experiment_id='model_ab_test',
+#     user_id='user123',
+#     variant='v2',
+#     metrics={'latency_ms': 150, 'tokens_per_second': 50}
+# )`;
+
+  const auditCode = `# BAGIAN D.5: Audit Logging & Compliance
+from datetime import datetime
+from typing import Dict, Any, Optional
+import json
+import hashlib
+from enum import Enum
+import sqlite3
+
+class AuditAction(Enum):
+    MODEL_ACCESS = "model_access"
+    MODEL_UPDATE = "model_update"
+    DATA_ACCESS = "data_access"
+    DATA_MODIFICATION = "data_modification"
+    USER_ACTION = "user_action"
+    SYSTEM_EVENT = "system_event"
+    SECURITY_EVENT = "security_event"
+
+class AuditLogger:
+    """Comprehensive audit logging untuk compliance"""
+    
+    def __init__(self, db_path='audit_log.db'):
+        self.db_path = db_path
+        self.init_db()
+    
+    def init_db(self):
+        """Initialize audit log database"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                action TEXT NOT NULL,
+                user_id TEXT,
+                resource_type TEXT,
+                resource_id TEXT,
+                details TEXT,
+                ip_address TEXT,
+                user_agent TEXT,
+                status TEXT,
+                checksum TEXT
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+    
+    def log(self, action: AuditAction, user_id: str = None,
+            resource_type: str = None, resource_id: str = None,
+            details: Dict = None, ip_address: str = None,
+            user_agent: str = None, status: str = 'success'):
+        """Log audit event"""
+        timestamp = datetime.utcnow().isoformat()
+        
+        # Create log entry
+        log_entry = {
+            'timestamp': timestamp,
+            'action': action.value,
+            'user_id': user_id,
+            'resource_type': resource_type,
+            'resource_id': resource_id,
+            'details': json.dumps(details) if details else None,
+            'ip_address': ip_address,
+            'user_agent': user_agent,
+            'status': status
+        }
+        
+        # Calculate checksum for integrity
+        checksum = self._calculate_checksum(log_entry)
+        log_entry['checksum'] = checksum
+        
+        # Store in database
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO audit_logs 
+            (timestamp, action, user_id, resource_type, resource_id, 
+             details, ip_address, user_agent, status, checksum)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            log_entry['timestamp'],
+            log_entry['action'],
+            log_entry['user_id'],
+            log_entry['resource_type'],
+            log_entry['resource_id'],
+            log_entry['details'],
+            log_entry['ip_address'],
+            log_entry['user_agent'],
+            log_entry['status'],
+            log_entry['checksum']
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return log_entry
+    
+    def _calculate_checksum(self, log_entry: Dict) -> str:
+        """Calculate checksum for log integrity"""
+        # Exclude checksum field
+        entry_copy = log_entry.copy()
+        entry_copy.pop('checksum', None)
+        
+        # Create deterministic string
+        log_string = json.dumps(entry_copy, sort_keys=True)
+        
+        # Calculate SHA-256 hash
+        return hashlib.sha256(log_string.encode()).hexdigest()
+    
+    def verify_integrity(self, log_id: int) -> bool:
+        """Verify log entry integrity"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM audit_logs WHERE id = ?', (log_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return False
+        
+        # Reconstruct log entry
+        log_entry = {
+            'timestamp': row[1],
+            'action': row[2],
+            'user_id': row[3],
+            'resource_type': row[4],
+            'resource_id': row[5],
+            'details': row[6],
+            'ip_address': row[7],
+            'user_agent': row[8],
+            'status': row[9]
+        }
+        
+        # Verify checksum
+        expected_checksum = self._calculate_checksum(log_entry)
+        stored_checksum = row[10]
+        
+        conn.close()
+        
+        return expected_checksum == stored_checksum
+    
+    def query_logs(self, start_date: str = None, end_date: str = None,
+                   action: str = None, user_id: str = None) -> List[Dict]:
+        """Query audit logs"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        query = 'SELECT * FROM audit_logs WHERE 1=1'
+        params = []
+        
+        if start_date:
+            query += ' AND timestamp >= ?'
+            params.append(start_date)
+        
+        if end_date:
+            query += ' AND timestamp <= ?'
+            params.append(end_date)
+        
+        if action:
+            query += ' AND action = ?'
+            params.append(action)
+        
+        if user_id:
+            query += ' AND user_id = ?'
+            params.append(user_id)
+        
+        query += ' ORDER BY timestamp DESC LIMIT 1000'
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        
+        conn.close()
+        
+        return [
+            {
+                'id': row[0],
+                'timestamp': row[1],
+                'action': row[2],
+                'user_id': row[3],
+                'resource_type': row[4],
+                'resource_id': row[5],
+                'details': json.loads(row[6]) if row[6] else None,
+                'ip_address': row[7],
+                'user_agent': row[8],
+                'status': row[9]
+            }
+            for row in rows
+        ]
+
+# Usage examples
+audit_logger = AuditLogger()
+
+# Log model access
+audit_logger.log(
+    action=AuditAction.MODEL_ACCESS,
+    user_id='user123',
+    resource_type='model',
+    resource_id='nxt-1-astro-v2',
+    details={'operation': 'inference', 'tokens_used': 150},
+    ip_address='192.168.1.1',
+    user_agent='Mozilla/5.0'
+)
+
+# Log model update
+audit_logger.log(
+    action=AuditAction.MODEL_UPDATE,
+    user_id='admin456',
+    resource_type='model',
+    resource_id='nxt-1-astro-v2',
+    details={'change': 'weights_updated', 'version': '2.1.0'},
+    status='success'
+)
+
+# Log security event
+audit_logger.log(
+    action=AuditAction.SECURITY_EVENT,
+    user_id='user789',
+    details={'event': 'failed_login', 'attempts': 3},
+    status='failure'
+)`;
+
+  const profilingCode = `# BAGIAN D.6: Performance Profiling & Analysis
+import torch
+from torch.profiler import profile, record_function, ProfilerActivity
+import time
+import psutil
+import GPUtil
+from contextlib import contextmanager
+import json
+from typing import Dict, List
+
+class PerformanceProfiler:
+    """Comprehensive performance profiling untuk model AI"""
+    
+    def __init__(self):
+        self.profiles: List[Dict] = []
+        self.system_monitor = SystemMonitor()
+    
+    @contextmanager
+    def profile_inference(self, operation_name: str):
+        """Profile inference operation"""
+        self.system_monitor.start_monitoring()
+        
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True
+        ) as prof:
+            with record_function(operation_name):
+                yield prof
+        
+        self.system_monitor.stop_monitoring()
+        
+        # Extract profiling data
+        profile_data = {
+            'operation': operation_name,
+            'timestamp': time.time(),
+            'cpu_time': prof.key_averages().self_cpu_time_total,
+            'cuda_time': prof.key_averages().self_cuda_time_total,
+            'memory_usage': prof.key_averages().self_cpu_memory_usage,
+            'system_metrics': self.system_monitor.get_metrics(),
+            'top_operations': self._get_top_operations(prof)
+        }
+        
+        self.profiles.append(profile_data)
+        
+        # Print summary
+        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+        
+        return profile_data
+    
+    def _get_top_operations(self, prof, top_n: int = 10) -> List[Dict]:
+        """Get top N operations by time"""
+        averages = prof.key_averages()
+        sorted_ops = sorted(averages, key=lambda x: x.self_cpu_time_total, reverse=True)
+        
+        return [
+            {
+                'name': op.key,
+                'cpu_time': op.self_cpu_time_total,
+                'cuda_time': op.self_cuda_time_total,
+                'cpu_memory': op.self_cpu_memory_usage,
+                'count': op.count
+            }
+            for op in sorted_ops[:top_n]
+        ]
+
+class SystemMonitor:
+    """Monitor system resources"""
+    
+    def __init__(self):
+        self.metrics_history: List[Dict] = []
+        self.monitoring = False
+    
+    def start_monitoring(self):
+        """Start system monitoring"""
+        self.monitoring = True
+        self._monitoring_thread = self._start_monitoring_loop()
+    
+    def stop_monitoring(self):
+        """Stop system monitoring"""
+        self.monitoring = False
+    
+    def _start_monitoring_loop(self):
+        """Monitoring loop"""
+        import threading
+        
+        def monitor():
+            while self.monitoring:
+                metrics = self._collect_metrics()
+                self.metrics_history.append(metrics)
+                time.sleep(0.1)  # 100ms intervals
+        
+        thread = threading.Thread(target=monitor)
+        thread.daemon = True
+        thread.start()
+        
+        return thread
+    
+    def _collect_metrics(self) -> Dict:
+        """Collect system metrics"""
+        # CPU metrics
+        cpu_percent = psutil.cpu_percent(interval=None)
+        cpu_count = psutil.cpu_count()
+        
+        # Memory metrics
+        memory = psutil.virtual_memory()
+        memory_percent = memory.percent
+        memory_used_gb = memory.used / (1024 ** 3)
+        memory_total_gb = memory.total / (1024 ** 3)
+        
+        # GPU metrics
+        gpus = GPUtil.getGPUs()
+        gpu_metrics = []
+        
+        for gpu in gpus:
+            gpu_metrics.append({
+                'id': gpu.id,
+                'name': gpu.name,
+                'load': gpu.load * 100,
+                'memory_used_mb': gpu.memoryUsed,
+                'memory_total_mb': gpu.memoryTotal,
+                'temperature': gpu.temperature
+            })
+        
+        # Disk I/O
+        disk_io = psutil.disk_io_counters()
+        
+        # Network I/O
+        net_io = psutil.net_io_counters()
+        
+        return {
+            'timestamp': time.time(),
+            'cpu': {
+                'percent': cpu_percent,
+                'count': cpu_count
+            },
+            'memory': {
+                'percent': memory_percent,
+                'used_gb': memory_used_gb,
+                'total_gb': memory_total_gb
+            },
+            'gpu': gpu_metrics,
+            'disk_io': {
+                'read_bytes': disk_io.read_bytes if disk_io else 0,
+                'write_bytes': disk_io.write_bytes if disk_io else 0
+            },
+            'network_io': {
+                'bytes_sent': net_io.bytes_sent,
+                'bytes_recv': net_io.bytes_recv
+            }
+        }
+    
+    def get_metrics(self) -> Dict:
+        """Get aggregated metrics"""
+        if not self.metrics_history:
+            return {}
+        
+        # Aggregate metrics
+        cpu_percents = [m['cpu']['percent'] for m in self.metrics_history]
+        memory_percents = [m['memory']['percent'] for m in self.metrics_history]
+        
+        return {
+            'cpu': {
+                'avg_percent': sum(cpu_percents) / len(cpu_percents),
+                'max_percent': max(cpu_percents),
+                'min_percent': min(cpu_percents)
+            },
+            'memory': {
+                'avg_percent': sum(memory_percents) / len(memory_percents),
+                'max_percent': max(memory_percents),
+                'current_gb': self.metrics_history[-1]['memory']['used_gb']
+            },
+            'gpu': self.metrics_history[-1]['gpu'],
+            'samples': len(self.metrics_history)
+        }
+
+# Memory profiler
+class MemoryProfiler:
+    """Detailed memory profiling"""
+    
+    def __init__(self):
+        self.snapshots = []
+    
+    def take_snapshot(self, label: str):
+        """Take memory snapshot"""
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            
+            snapshot = {
+                'label': label,
+                'timestamp': time.time(),
+                'cuda_allocated_gb': torch.cuda.memory_allocated() / (1024 ** 3),
+                'cuda_reserved_gb': torch.cuda.memory_reserved() / (1024 ** 3),
+                'cuda_max_allocated_gb': torch.cuda.max_memory_allocated() / (1024 ** 3),
+                'cpu_memory_gb': psutil.Process().memory_info().rss / (1024 ** 3)
+            }
+            
+            self.snapshots.append(snapshot)
+            
+            print(f"📊 Memory Snapshot [{label}]:")
+            print(f"   CUDA Allocated: {snapshot['cuda_allocated_gb']:.2f} GB")
+            print(f"   CUDA Reserved: {snapshot['cuda_reserved_gb']:.2f} GB")
+            print(f"   CPU Memory: {snapshot['cpu_memory_gb']:.2f} GB")
+            
+            return snapshot
+    
+    def compare_snapshots(self, label1: str, label2: str) -> Dict:
+        """Compare two memory snapshots"""
+        snapshot1 = next((s for s in self.snapshots if s['label'] == label1), None)
+        snapshot2 = next((s for s in self.snapshots if s['label'] == label2), None)
+        
+        if not snapshot1 or not snapshot2:
+            return {'error': 'Snapshots not found'}
+        
+        return {
+            'cuda_allocated_diff_gb': snapshot2['cuda_allocated_gb'] - snapshot1['cuda_allocated_gb'],
+            'cuda_reserved_diff_gb': snapshot2['cuda_reserved_gb'] - snapshot1['cuda_reserved_gb'],
+            'cpu_memory_diff_gb': snapshot2['cpu_memory_gb'] - snapshot1['cpu_memory_gb']
+        }
+
+# Usage
+profiler = PerformanceProfiler()
+memory_profiler = MemoryProfiler()
+
+# Profile inference
+memory_profiler.take_snapshot('before_inference')
+
+with profiler.profile_inference('model.generate'):
+    output = model.generate(inputs, max_new_tokens=100)
+
+memory_profiler.take_snapshot('after_inference')
+
+# Compare memory usage
+diff = memory_profiler.compare_snapshots('before_inference', 'after_inference')
+print(f"Memory increase: {diff['cuda_allocated_diff_gb']:.2f} GB")`;
+
+  const tabs = [
+    { id: 'tracing', label: 'Distributed Tracing', icon: Target },
+    { id: 'logging', label: 'Centralized Logging', icon: BookOpen },
+    { id: 'drift', label: 'Drift Detection', icon: TrendingUp },
+    { id: 'ab', label: 'A/B Testing', icon: BarChart3 },
+    { id: 'audit', label: 'Audit Logging', icon: Shield },
+    { id: 'profiling', label: 'Profiling', icon: Zap },
+  ];
+
+  return (
+    <section id="observability" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-violet-950/5 to-transparent" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-500/20 mb-6">
+            <span className="text-xs font-mono text-violet-300">BAGIAN D</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Pemantauan, Pencatatan & Kemampuan Observatif 🔭
+          </h2>
+          <p className="text-gray-400 max-w-3xl mx-auto">
+            Implementasi komprehensif untuk monitoring, logging, tracing, dan observability model AI di production
+          </p>
+        </motion.div>
+
+        {/* Observability pillars */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          {[
+            { title: 'Tracing', desc: 'Distributed tracing dengan OpenTelemetry & Jaeger', icon: '🔍', color: 'violet' },
+            { title: 'Logging', desc: 'Centralized logging dengan ELK Stack & Loki', icon: '📝', color: 'blue' },
+            { title: 'Metrics', desc: 'Real-time metrics dengan Prometheus & Grafana', icon: '📊', color: 'green' },
+            { title: 'Drift Detection', desc: 'Deteksi model drift dengan PSI, KS-test, MMD', icon: '📈', color: 'yellow' },
+            { title: 'A/B Testing', desc: 'Experiment management & feature flags', icon: '🧪', color: 'pink' },
+            { title: 'Audit & Compliance', desc: 'Audit logging dengan integrity verification', icon: '🔒', color: 'red' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="p-5 rounded-xl bg-gray-900/50 border border-gray-800/50"
+            >
+              <div className="text-3xl mb-2">{item.icon}</div>
+              <h3 className={`text-${item.color}-400 font-semibold text-sm mb-1`}>{item.title}</h3>
+              <p className="text-gray-400 text-xs">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Code tabs */}
+        <div className="flex flex-wrap gap-2 mb-6 justify-center">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                activeTab === tab.id
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              <span className="text-sm font-medium">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Code display */}
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {activeTab === 'tracing' && <CodeBlock code={tracingCode} title="distributed_tracing.py" />}
+          {activeTab === 'logging' && <CodeBlock code={loggingCode} title="centralized_logging.py" />}
+          {activeTab === 'drift' && <CodeBlock code={driftCode} title="drift_detection.py" />}
+          {activeTab === 'ab' && <CodeBlock code={abCode} title="ab_testing.py" />}
+          {activeTab === 'audit' && <CodeBlock code={auditCode} title="audit_logging.py" />}
+          {activeTab === 'profiling' && <CodeBlock code={profilingCode} title="performance_profiling.py" />}
+        </motion.div>
+
+        {/* Architecture diagram */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-12 p-6 rounded-2xl bg-gray-900/50 border border-gray-800/50"
+        >
+          <h3 className="text-lg font-semibold text-white mb-6 text-center">
+            Observability Architecture
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[
+              { layer: 'Application', items: ['Model Server', 'API Gateway', 'Load Balancer'], color: 'violet' },
+              { layer: 'Collection', items: ['OpenTelemetry', 'Prometheus', 'Fluentd'], color: 'blue' },
+              { layer: 'Storage', items: ['Jaeger', 'Elasticsearch', 'Loki'], color: 'green' },
+              { layer: 'Visualization', items: ['Grafana', 'Kibana', 'Alertmanager'], color: 'yellow' },
+            ].map((item, i) => (
+              <div key={i} className={`p-4 rounded-xl bg-${item.color}-500/10 border border-${item.color}-500/20`}>
+                <h4 className={`text-${item.color}-400 font-semibold mb-3 text-sm`}>{item.layer}</h4>
+                <ul className="space-y-2">
+                  {item.items.map((subItem, j) => (
+                    <li key={j} className="text-gray-300 text-xs flex items-center gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full bg-${item.color}-400`} />
+                      {subItem}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
 // ============ MAIN APP ============
 export default function App() {
   return (
@@ -5640,6 +6886,7 @@ export default function App() {
       <ResourcesSection />
       <DeploymentSection />
       <MonitoringSection />
+      <ObservabilitySection />
       <OptimizationSection />
       <RoadmapSection />
       <FeaturesSection />
