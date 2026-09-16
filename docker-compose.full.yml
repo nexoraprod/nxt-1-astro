@@ -1,11 +1,7 @@
 version: '3.8'
 
 services:
-  # Main Application
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: nexoraprod/nxt-1-astro:latest
     container_name: nxt-1-astro-app
     restart: unless-stopped
@@ -36,7 +32,6 @@ services:
     networks:
       - nxt1-network
 
-  # Prometheus - Metrics Collection
   prometheus:
     image: prom/prometheus:latest
     container_name: nxt-1-astro-prometheus
@@ -53,13 +48,12 @@ services:
     networks:
       - nxt1-network
 
-  # Grafana - Visualization
   grafana:
     image: grafana/grafana:latest
     container_name: nxt-1-astro-grafana
     restart: unless-stopped
     ports:
-      - "3001:3000"  # Changed from 3000 to 3001 to avoid conflicts
+      - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
@@ -72,7 +66,6 @@ services:
     networks:
       - nxt1-network
 
-  # Loki - Log Aggregation
   loki:
     image: grafana/loki:2.9.0
     container_name: nxt-1-astro-loki
@@ -93,7 +86,6 @@ services:
     networks:
       - nxt1-network
 
-  # Promtail - Log Shipping
   promtail:
     image: grafana/promtail:2.9.0
     container_name: nxt-1-astro-promtail
@@ -104,26 +96,23 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/config.yml
     depends_on:
-      loki:
-        condition: service_healthy
+      - loki
     networks:
       - nxt1-network
 
-  # Jaeger - Distributed Tracing
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: nxt-1-astro-jaeger
     restart: unless-stopped
     ports:
-      - "16686:16686"  # Jaeger UI
-      - "14268:14268"  # Jaeger collector
-      - "6831:6831/udp"  # Jaeger agent
+      - "16686:16686"
+      - "14268:14268"
+      - "6831:6831/udp"
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     networks:
       - nxt1-network
 
-  # Node Exporter - System Metrics
   node-exporter:
     image: prom/node-exporter:latest
     container_name: nxt-1-astro-node-exporter
@@ -142,7 +131,6 @@ services:
     networks:
       - nxt1-network
 
-  # cAdvisor - Container Metrics
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: nxt-1-astro-cadvisor
@@ -158,7 +146,6 @@ services:
     networks:
       - nxt1-network
 
-  # Redis - Caching (Optional)
   redis:
     image: redis:7-alpine
     container_name: nxt-1-astro-redis
@@ -171,7 +158,6 @@ services:
     networks:
       - nxt1-network
 
-  # Watchtower - Auto Update
   watchtower:
     image: containrrr/watchtower
     container_name: nxt-1-astro-watchtower
