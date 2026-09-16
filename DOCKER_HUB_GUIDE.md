@@ -8,7 +8,7 @@ Panduan lengkap untuk build dan push image nxt-1-astro ke Docker Hub.
 
 ### 1. Docker Hub Account
 - Daftar di: https://hub.docker.com/signup
-- Username: `nexoraprod` (atau username Anda)
+- Username: `1astro` (atau username Anda)
 
 ### 2. Docker Installed
 ```bash
@@ -33,14 +33,14 @@ docker login
 
 ```bash
 # 1. Build image
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 
 # 2. Tag dengan version (optional)
-docker tag nexoraprod/nxt-1-astro:latest nexoraprod/nxt-1-astro:v1.5.0
+docker tag 1astro/nxt-1-astro:latest 1astro/nxt-1-astro:v1.5.0
 
 # 3. Push ke Docker Hub
-docker push nexoraprod/nxt-1-astro:latest
-docker push nexoraprod/nxt-1-astro:v1.5.0
+docker push 1astro/nxt-1-astro:latest
+docker push 1astro/nxt-1-astro:v1.5.0
 ```
 
 ### Option 2: Gunakan Docker Compose
@@ -96,7 +96,7 @@ error() {
 }
 
 # Configuration
-IMAGE_NAME="nexoraprod/nxt-1-astro"
+IMAGE_NAME="1astro/nxt-1-astro"
 VERSION=${1:-"latest"}
 
 echo ""
@@ -158,7 +158,7 @@ echo "🎉 SUCCESS!"
 echo "=========================================="
 echo ""
 echo "📦 Image: $IMAGE_NAME:$VERSION"
-echo "🔗 Docker Hub: https://hub.docker.com/r/nexoraprod/nxt-1-astro"
+echo "🔗 Docker Hub: https://hub.docker.com/r/1astro/nxt-1-astro"
 echo ""
 echo "Pull command:"
 echo "  docker pull $IMAGE_NAME:$VERSION"
@@ -186,7 +186,7 @@ git add package-lock.json
 git commit -m "Add package-lock.json"
 
 # Build lagi
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 ```
 
 ### Error: "pull access denied"
@@ -202,7 +202,7 @@ docker login
 docker images | grep nxt-1-astro
 
 # Build dengan nama yang benar
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 ```
 
 ### Error: "manifest unknown"
@@ -212,7 +212,7 @@ docker build -t nexoraprod/nxt-1-astro:latest .
 **Solusi:**
 ```bash
 # Push image
-docker push nexoraprod/nxt-1-astro:latest
+docker push 1astro/nxt-1-astro:latest
 ```
 
 ### Error: "no such host"
@@ -233,7 +233,7 @@ sudo systemctl restart docker
 ## 📊 Verify di Docker Hub
 
 Setelah push, verify di:
-- https://hub.docker.com/r/nexoraprod/nxt-1-astro
+- https://hub.docker.com/r/1astro/nxt-1-astro
 
 Check:
 - ✅ Image size
@@ -247,27 +247,27 @@ Check:
 
 ### Pull Image
 ```bash
-docker pull nexoraprod/nxt-1-astro:latest
+docker pull 1astro/nxt-1-astro:latest
 ```
 
 ### Run Container
 ```bash
 # Basic run
-docker run -d -p 80:80 nexoraprod/nxt-1-astro:latest
+docker run -d -p 80:80 1astro/nxt-1-astro:latest
 
 # With environment variables
 docker run -d \
   -p 80:80 \
   -e NODE_ENV=production \
   --name nxt-1-astro \
-  nexoraprod/nxt-1-astro:latest
+  1astro/nxt-1-astro:latest
 
 # With volume
 docker run -d \
   -p 80:80 \
   -v $(pwd)/logs:/var/log \
   --name nxt-1-astro \
-  nexoraprod/nxt-1-astro:latest
+  1astro/nxt-1-astro:latest
 ```
 
 ### Run dengan Docker Compose
@@ -295,7 +295,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: nexoraprod/nxt-1-astro
+  IMAGE_NAME: 1astro/nxt-1-astro
 
 jobs:
   build:
@@ -357,12 +357,12 @@ Generate token di: https://hub.docker.com/settings/security
 ### Setelah Build
 - [ ] Build successful
 - [ ] Image size reasonable
-- [ ] Test locally: `docker run -p 80:80 nexoraprod/nxt-1-astro:latest`
+- [ ] Test locally: `docker run -p 80:80 1astro/nxt-1-astro:latest`
 - [ ] Push successful
 - [ ] Verify di Docker Hub
 
 ### After Push
-- [ ] Pull test: `docker pull nexoraprod/nxt-1-astro:latest`
+- [ ] Pull test: `docker pull 1astro/nxt-1-astro:latest`
 - [ ] Run test di server lain
 - [ ] Update documentation
 - [ ] Tag release di GitHub

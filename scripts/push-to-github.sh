@@ -52,7 +52,7 @@ REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
 if [ -z "$REMOTE_URL" ]; then
     log "🔗 No remote configured. Setting up..."
     echo ""
-    read -p "Enter GitHub repository URL (e.g., https://github.com/nexoraprod/nxt-1-astro.git): " repo_url
+    read -p "Enter GitHub repository URL (e.g., https://github.com/1astro/nxt-1-astro.git): " repo_url
     
     if [ -z "$repo_url" ]; then
         error "Repository URL is required"

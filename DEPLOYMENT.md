@@ -58,7 +58,7 @@ git commit -m "feat: initial commit - nxt-1 astro"
 # Visibility: Public/Private
 
 # Connect ke GitHub
-git remote add origin https://github.com/nexoraprod/nxt-1-astro.git
+git remote add origin https://github.com/1astro/nxt-1-astro.git
 git branch -M main
 git push -u origin main
 ```
@@ -105,14 +105,14 @@ docker login
 #### 4. Push Image
 ```bash
 # Build image
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 
 # Tag dengan version
-docker tag nexoraprod/nxt-1-astro:latest nexoraprod/nxt-1-astro:v1.0.0
+docker tag 1astro/nxt-1-astro:latest 1astro/nxt-1-astro:v1.0.0
 
 # Push ke Docker Hub
-docker push nexoraprod/nxt-1-astro:latest
-docker push nexoraprod/nxt-1-astro:v1.0.0
+docker push 1astro/nxt-1-astro:latest
+docker push 1astro/nxt-1-astro:v1.0.0
 ```
 
 ### Option B: GitHub Container Registry (GHCR)
@@ -132,10 +132,10 @@ echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 #### 3. Build & Push
 ```bash
 # Build image
-docker build -t ghcr.io/nexoraprod/nxt-1-astro:latest .
+docker build -t ghcr.io/1astro/nxt-1-astro:latest .
 
 # Push
-docker push ghcr.io/nexoraprod/nxt-1-astro:latest
+docker push ghcr.io/1astro/nxt-1-astro:latest
 ```
 
 ### Option C: Self-Hosted Registry
@@ -239,7 +239,7 @@ version: '3.8'
 
 services:
   app:
-    image: nexoraprod/nxt-1-astro:latest
+    image: 1astro/nxt-1-astro:latest
     container_name: nxt-1-astro
     ports:
       - "80:80"
@@ -335,7 +335,7 @@ Jika ingin deploy manual tanpa GitHub Actions:
 ### Step 1: Build Image di Local
 ```bash
 # Clone repository
-git clone https://github.com/nexoraprod/nxt-1-astro.git
+git clone https://github.com/1astro/nxt-1-astro.git
 cd nxt-1-astro
 
 # Build Docker image
@@ -345,10 +345,10 @@ docker build -t nxt-1-astro:latest .
 ### Step 2: Push ke Registry
 ```bash
 # Tag image
-docker tag nxt-1-astro:latest nexoraprod/nxt-1-astro:latest
+docker tag nxt-1-astro:latest 1astro/nxt-1-astro:latest
 
 # Push
-docker push nexoraprod/nxt-1-astro:latest
+docker push 1astro/nxt-1-astro:latest
 ```
 
 ### Step 3: Deploy di Server
@@ -495,7 +495,7 @@ docker-compose up -d
 
 # Rollback ke version sebelumnya
 docker-compose down
-docker tag nexoraprod/nxt-1-astro:v1.0.0 nexoraprod/nxt-1-astro:latest
+docker tag 1astro/nxt-1-astro:v1.0.0 1astro/nxt-1-astro:latest
 docker-compose up -d
 ```
 
@@ -552,7 +552,7 @@ docker login
 docker images | grep nxt-1-astro
 
 # Pull manual
-docker pull nexoraprod/nxt-1-astro:latest
+docker pull 1astro/nxt-1-astro:latest
 ```
 
 ### Problem: SSH connection failed
@@ -627,7 +627,7 @@ services:
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/nexoraprod/nxt-1-astro.git
+git clone https://github.com/1astro/nxt-1-astro.git
 cd nxt-1-astro
 
 # 2. Build & test local
@@ -635,8 +635,8 @@ docker build -t nxt-1-astro:latest .
 docker run -d -p 80:80 nxt-1-astro:latest
 
 # 3. Push ke Docker Hub
-docker tag nxt-1-astro:latest nexoraprod/nxt-1-astro:latest
-docker push nexoraprod/nxt-1-astro:latest
+docker tag nxt-1-astro:latest 1astro/nxt-1-astro:latest
+docker push 1astro/nxt-1-astro:latest
 
 # 4. Deploy ke server
 ssh USERNAME@SERVER_IP

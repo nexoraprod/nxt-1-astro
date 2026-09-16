@@ -26,7 +26,7 @@ Panduan lengkap untuk deploy website nxt-1 astro secara lokal dengan monitoring 
 
 ```bash
 # Clone repository
-git clone https://github.com/nexoraprod/nxt-1-astro.git
+git clone https://github.com/1astro/nxt-1-astro.git
 cd nxt-1-astro
 
 # Make scripts executable
@@ -346,7 +346,7 @@ docker-compose -f docker-compose.full.yml restart grafana
 Jika ada masalah:
 1. Check logs: `docker-compose -f docker-compose.full.yml logs`
 2. Check [DEPLOYMENT.md](./DEPLOYMENT.md) untuk panduan lengkap
-3. Buka issue di GitHub: https://github.com/nexoraprod/nxt-1-astro/issues
+3. Buka issue di GitHub: https://github.com/1astro/nxt-1-astro/issues
 
 ---
 

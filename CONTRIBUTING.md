@@ -8,12 +8,12 @@ Terima kasih atas minat Anda untuk berkontribusi! 🎉
 ```bash
 # Klik tombol "Fork" di GitHub
 # atau gunakan GitHub CLI
-gh repo fork nexoraprod/nxt-1-astro
+gh repo fork 1astro/nxt-1-astro
 ```
 
 ### 2. Clone Repository
 ```bash
-git clone https://github.com/nexoraprod/nxt-1-astro.git
+git clone https://github.com/1astro/nxt-1-astro.git
 cd nxt-1-astro
 ```
 

@@ -30,7 +30,7 @@ warning() {
 }
 
 # Configuration
-IMAGE_NAME="nexoraprod/nxt-1-astro"
+IMAGE_NAME="1astro/nxt-1-astro"
 VERSION=${1:-"latest"}
 
 echo ""
@@ -188,7 +188,7 @@ echo "🎉 BUILD COMPLETE!"
 echo "=========================================="
 echo ""
 echo "📦 Image: $IMAGE_NAME:$VERSION"
-echo "🔗 Docker Hub: https://hub.docker.com/r/nexoraprod/nxt-1-astro"
+echo "🔗 Docker Hub: https://hub.docker.com/r/1astro/nxt-1-astro"
 echo ""
 echo "Commands:"
 echo "  Pull:    docker pull $IMAGE_NAME:$VERSION"
