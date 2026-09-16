@@ -40,7 +40,7 @@ Klik **New repository secret** dan tambahkan secrets berikut:
 
 | Secret Name | Value | Keterangan |
 |-------------|-------|------------|
-| `DOCKERHUB_USERNAME` | `nexoraprod` | Username Docker Hub Anda |
+| `DOCKERHUB_USERNAME` | `1astro` | Username Docker Hub Anda |
 | `DOCKERHUB_TOKEN` | `dckr_pat_...` | Access Token dari Docker Hub |
 
 **Cara mendapatkan Docker Hub Token:**

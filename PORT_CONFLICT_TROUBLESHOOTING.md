@@ -242,7 +242,7 @@ docker-compose -f docker-compose.full.yml restart grafana
 Jika masih ada masalah:
 1. Run `./scripts/fix-port-conflict.sh`
 2. Check logs: `docker-compose -f docker-compose.full.yml logs`
-3. Create issue: https://github.com/nexoraprod/nxt-1-astro/issues
+3. Create issue: https://github.com/1astro/nxt-1-astro/issues
 
 ---
 

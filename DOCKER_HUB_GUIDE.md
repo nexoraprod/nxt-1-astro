@@ -8,7 +8,7 @@ Panduan lengkap untuk build dan push image nxt-1-astro ke Docker Hub.
 
 ### 1. Docker Hub Account
 - Daftar di: https://hub.docker.com/signup
-- Username: `nexoraprod` (atau username Anda)
+- Username: `1astro` (atau username Anda)
 
 ### 2. Docker Installed
 ```bash

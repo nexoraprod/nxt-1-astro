@@ -10,7 +10,7 @@ Panduan cepat untuk deploy **nxt-1 astro** dari GitHub repository ke server prod
 
 ```bash
 # Fork repository ini di GitHub, lalu clone
-git clone https://github.com/nexoraprod/nxt-1-astro.git
+git clone https://github.com/1astro/nxt-1-astro.git
 cd nxt-1-astro
 ```
 

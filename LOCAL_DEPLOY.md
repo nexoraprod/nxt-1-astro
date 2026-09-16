@@ -61,7 +61,7 @@ python3 --version
 
 ```bash
 # Clone repository
-git clone https://github.com/nexoraprod/nxt-1-astro.git
+git clone https://github.com/1astro/nxt-1-astro.git
 cd nxt-1-astro
 
 # Make scripts executable

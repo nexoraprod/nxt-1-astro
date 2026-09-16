@@ -58,7 +58,7 @@ git commit -m "feat: initial commit - nxt-1 astro"
 # Visibility: Public/Private
 
 # Connect ke GitHub
-git remote add origin https://github.com/nexoraprod/nxt-1-astro.git
+git remote add origin https://github.com/1astro/nxt-1-astro.git
 git branch -M main
 git push -u origin main
 ```

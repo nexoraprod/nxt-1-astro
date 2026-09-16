@@ -233,7 +233,7 @@ git push origin main
 | Issue | Status | Solution |
 |-------|--------|----------|
 | npm ci error | ✅ Fixed | Changed to npm install |
-| Docker registry placeholder | ✅ Fixed | Updated to nexoraprod |
+| Docker registry placeholder | ✅ Fixed | Updated to 1astro |
 | Loki not running | ✅ Fixed | Updated to schema v13 |
 | Port 3000 conflict | ✅ Fixed | Changed to 3001 |
 | GitHub API validation | ✅ Fixed | Added secrets validation |

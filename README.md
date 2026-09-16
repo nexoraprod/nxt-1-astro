@@ -139,7 +139,7 @@ nxt-1-astro/
 
 1. **Clone repository**
 ```bash
-git clone https://github.com/nexoraprod/nxt-1-astro.git
+git clone https://github.com/1astro/nxt-1-astro.git
 cd nxt-1-astro
 ```
 
@@ -200,13 +200,13 @@ docker-compose down
 
 ```bash
 # Build image
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 
 # List images
 docker images | grep nxt-1-astro
 
 # Run container
-docker run -d -p 80:80 nexoraprod/nxt-1-astro:latest
+docker run -d -p 80:80 1astro/nxt-1-astro:latest
 
 # Stop container
 docker stop <container-id>
@@ -215,7 +215,7 @@ docker stop <container-id>
 docker rm <container-id>
 
 # Remove image
-docker rmi nexoraprod/nxt-1-astro:latest
+docker rmi 1astro/nxt-1-astro:latest
 ```
 
 ### Build & Push ke Docker Hub
@@ -270,12 +270,12 @@ VITE_APP_NAME=nxt-1-astro
 
 ```bash
 # Build and push to Docker Hub
-docker build -t nexoraprod/nxt-1-astro:latest .
-docker push nexoraprod/nxt-1-astro:latest
+docker build -t 1astro/nxt-1-astro:latest .
+docker push 1astro/nxt-1-astro:latest
 
 # Deploy to server
-docker pull nexoraprod/nxt-1-astro:latest
-docker run -d -p 80:80 nexoraprod/nxt-1-astro:latest
+docker pull 1astro/nxt-1-astro:latest
+docker run -d -p 80:80 1astro/nxt-1-astro:latest
 ```
 
 Lihat **[DOCKER_HUB_GUIDE.md](./DOCKER_HUB_GUIDE.md)** untuk panduan lengkap.
@@ -452,7 +452,7 @@ nxt-1-astro/
 Contributions are welcome! Here's how you can help:
 
 ### Report Issues
-- Found a bug? [Open an issue](https://github.com/nexoraprod/nxt-1-astro/issues)
+- Found a bug? [Open an issue](https://github.com/1astro/nxt-1-astro/issues)
 - Have a suggestion? We'd love to hear it!
 
 ### Submit Changes
@@ -499,7 +499,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/nexoraprod/nxt-1-astro.git
+git clone https://github.com/1astro/nxt-1-astro.git
 cd nxt-1-astro
 
 # 2. Make scripts executable
@@ -626,7 +626,7 @@ docker-compose -f docker-compose.full.yml up -d --force-recreate loki
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=nexoraprod/nxt-1-astro&type=Date)](https://star-history.com/#nexoraprod/nxt-1-astro&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=1astro/nxt-1-astro&type=Date)](https://star-history.com/#1astro/nxt-1-astro&Date)
 
 ---
 

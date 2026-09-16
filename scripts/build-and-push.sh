@@ -30,7 +30,7 @@ warning() {
 }
 
 # Configuration
-IMAGE_NAME="nexoraprod/nxt-1-astro"
+IMAGE_NAME="1astro/nxt-1-astro"
 VERSION=${1:-"latest"}
 
 echo ""

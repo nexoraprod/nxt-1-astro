@@ -94,7 +94,7 @@ ssh -T git@github.com
 #### Gunakan HTTPS sebagai Alternative
 ```bash
 # Change remote URL ke HTTPS
-git remote set-url origin https://github.com/nexoraprod/nxt-1-astro.git
+git remote set-url origin https://github.com/1astro/nxt-1-astro.git
 
 # Push lagi
 git push origin main

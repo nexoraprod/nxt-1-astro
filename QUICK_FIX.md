@@ -28,7 +28,7 @@ git add package-lock.json
 git commit -m "Add package-lock.json"
 
 # Build lagi
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 ```
 
 #### Option 2: Gunakan npm install di Dockerfile

@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    image: nexoraprod/nxt-1-astro:dev
+    image: 1astro/nxt-1-astro:dev
     ports:
       - "3002:3000"
     volumes:
@@ -22,7 +22,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: nexoraprod/nxt-1-astro:latest
+    image: 1astro/nxt-1-astro:latest
     ports:
       - "80:80"
     environment:

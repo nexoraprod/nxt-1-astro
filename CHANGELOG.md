@@ -70,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tokenization** - BPE, SentencePiece
 - **Pipeline** - 4-stage training
 - **Deployment** - Docker, vLLM, FastAPI
-- **GitHub repository** - https://github.com/nexoraprod/nxt-1-astro
+- **GitHub repository** - https://github.com/1astro/nxt-1-astro
 
 ## [1.0.0] - 2024
 
