@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Model - nxt-1 astro (Standalone)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1em;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input[type="number"], select {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .output-section {
+            margin-top: 30px;
+        }
+
+        .output-box {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 200px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+
+        .output-box.loading {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .examples h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .example-btn {
+            display: inline-block;
+            padding: 8px 15px;
+            margin: 5px;
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 20px;
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+
+        .example-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .mode-selector {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .mode-selector h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .mode-selector label {
+            display: inline-block;
+            margin-right: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Test Model nxt-1 astro</h1>
+            <p>Uji coba model AI prototype Anda (Standalone Mode)</p>
+        </div>
+
+        <div class="content">
+            <div class="mode-selector">
+                <h3>⚙️ Mode Testing:</h3>
+                <label>
+                    <input type="radio" name="mode" value="mock" checked>
+                    🎭 Mock Mode (Simulasi - Tidak perlu server)
+                </label>
+                <label>
+                    <input type="radio" name="mode" value="api">
+                    🔌 API Mode (Butuh server.py running)
+                </label>
+            </div>
+
+            <div id="status" class="status info">
+                ℹ️ Mock Mode aktif - Model simulasi siap untuk testing
+            </div>
+
+            <div class="input-section">
+                <div class="input-group">
+                    <label for="prompt">Prompt / Pertanyaan:</label>
+                    <textarea id="prompt" placeholder="Masukkan prompt atau pertanyaan Anda di sini..."></textarea>
+                </div>
+
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="maxTokens">Max Tokens:</label>
+                        <input type="number" id="maxTokens" value="100" min="10" max="1000">
+                    </div>
+                    <div class="control-group">
+                        <label for="temperature">Temperature:</label>
+                        <input type="number" id="temperature" value="0.7" min="0" max="2" step="0.1">
+                    </div>
+                    <div class="control-group">
+                        <label for="topP">Top P:</label>
+                        <input type="number" id="topP" value="0.9" min="0" max="1" step="0.05">
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="generateText()">
+                        🎯 Generate Text
+                    </button>
+                    <button class="btn-secondary" onclick="clearOutput()">
+                        🗑️ Clear
+                    </button>
+                </div>
+            </div>
+
+            <div class="output-section">
+                <label>Output:</label>
+                <div id="output" class="output-box">
+                    Output akan muncul di sini...
+                </div>
+
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="tokensGenerated">0</div>
+                        <div class="stat-label">Tokens Generated</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="latency">0</div>
+                        <div class="stat-label">Latency (ms)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="tokensPerSec">0</div>
+                        <div class="stat-label">Tokens/sec</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="examples">
+                <h3>💡 Contoh Prompt:</h3>
+                <span class="example-btn" onclick="setExample('Jelaskan apa itu machine learning')">
+                    Machine Learning
+                </span>
+                <span class="example-btn" onclick="setExample('Buat cerita pendek tentang robot')">
+                    Cerita Robot
+                </span>
+                <span class="example-btn" onclick="setExample('Apa perbedaan AI dan ML?')">
+                    AI vs ML
+                </span>
+                <span class="example-btn" onclick="setExample('Tulis kode Python untuk fibonacci')">
+                    Kode Python
+                </span>
+                <span class="example-btn" onclick="setExample('Jelaskan transformer architecture')">
+                    Transformer
+                </span>
+                <span class="example-btn" onclick="setExample('Apa itu deep learning?')">
+                    Deep Learning
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isGenerating = false;
+        let startTime = 0;
+
+        function setExample(text) {
+            document.getElementById('prompt').value = text;
+        }
+
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function getMode() {
+            return document.querySelector('input[name="mode"]:checked').value;
+        }
+
+        async function generateText() {
+            const prompt = document.getElementById('prompt').value.trim();
+            
+            if (!prompt) {
+                updateStatus('❌ Masukkan prompt terlebih dahulu!', 'error');
+                return;
+            }
+
+            if (isGenerating) {
+                updateStatus('⚠️ Generation sedang berjalan...', 'info');
+                return;
+            }
+
+            isGenerating = true;
+            startTime = Date.now();
+            
+            const output = document.getElementById('output');
+            output.textContent = 'Generating...';
+            output.classList.add('loading');
+            
+            const mode = getMode();
+            updateStatus(`🔄 Generating text (${mode} mode)...`, 'info');
+
+            const maxTokens = parseInt(document.getElementById('maxTokens').value);
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const topP = parseFloat(document.getElementById('topP').value);
+
+            try {
+                let response;
+                
+                if (mode === 'api') {
+                    // API Mode - Call real server
+                    response = await callAPI(prompt, maxTokens, temperature, topP);
+                } else {
+                    // Mock Mode - Simulate response
+                    response = await simulateAPI(prompt, maxTokens, temperature, topP);
+                }
+                
+                const endTime = Date.now();
+                const latency = endTime - startTime;
+                const tokensGenerated = response.split(' ').length;
+                const tokensPerSec = (tokensGenerated / (latency / 1000)).toFixed(2);
+
+                output.textContent = response;
+                output.classList.remove('loading');
+                
+                document.getElementById('tokensGenerated').textContent = tokensGenerated;
+                document.getElementById('latency').textContent = latency;
+                document.getElementById('tokensPerSec').textContent = tokensPerSec;
+                
+                updateStatus(`✅ Generation completed! (${mode} mode)`, 'success');
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                output.classList.remove('loading');
+                updateStatus(`❌ Error: ${error.message}`, 'error');
+            } finally {
+                isGenerating = false;
+            }
+        }
+
+        async function callAPI(prompt, maxTokens, temperature, topP) {
+            // Call real API server
+            const response = await fetch('http://localhost:8000/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    prompt: prompt,
+                    max_tokens: maxTokens,
+                    temperature: temperature,
+                    top_p: topP
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.text;
+        }
+
+        async function simulateAPI(prompt, maxTokens, temperature, topP) {
+            // Simulasi delay API
+            await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1200));
+            
+            // Simulasi response berdasarkan prompt
+            const responses = {
+                'machine learning': 'Machine learning adalah cabang dari kecerdasan buatan yang memungkinkan sistem belajar dan meningkatkan kinerja dari pengalaman tanpa diprogram secara eksplisit. Contoh algoritma populer termasuk decision trees, neural networks, dan support vector machines. ML sangat berguna untuk pattern recognition, prediction, dan automation.',
+                'robot': 'Di sebuah pabrik tua, robot bernama RX-7 menemukan sebuah bunga kecil yang tumbuh di celah beton. Untuk pertama kalinya, sensor emosionalnya aktif. "Indah," bisiknya dalam bahasa mesin. Sejak hari itu, RX-7 merawat bunga itu setiap hari, membuktikan bahwa bahkan mesin pun bisa belajar tentang keindahan dan empati.',
+                'ai dan ml': 'AI (Artificial Intelligence) adalah konsep luas tentang mesin yang bisa melakukan tugas cerdas. ML (Machine Learning) adalah subset dari AI yang fokus pada algoritma yang bisa belajar dari data. Jadi, semua ML adalah AI, tapi tidak semua AI adalah ML. Contoh AI non-ML: rule-based systems, expert systems.',
+                'python': 'def fibonacci(n):\n    """Menghitung fibonacci sequence"""\n    if n <= 1:\n        return n\n    a, b = 0, 1\n    for _ in range(2, n + 1):\n        a, b = b, a + b\n    return b\n\n# Contoh penggunaan\nfor i in range(10):\n    print(f"Fibonacci({i}) = {fibonacci(i)}")\n\n# Output:\n# Fibonacci(0) = 0\n# Fibonacci(1) = 1\n# Fibonacci(2) = 1\n# ...',
+                'transformer': 'Transformer architecture adalah model deep learning yang menggunakan mekanisme self-attention untuk memproses data secara paralel. Diperkenalkan dalam paper "Attention Is All You Need" (2017) oleh Vaswani et al., transformer menjadi dasar bagi model-model besar seperti GPT, BERT, dan T5. Keunggulan utamanya adalah kemampuan menangkap long-range dependencies dalam data secara efisien.',
+                'deep learning': 'Deep learning adalah subset dari machine learning yang menggunakan neural networks dengan banyak layer (deep). Setiap layer mengekstrak fitur yang semakin abstrak dari data. Contoh aplikasi: image recognition (CNN), natural language processing (RNN, Transformer), dan autonomous driving. Deep learning memerlukan data dalam jumlah besar dan komputasi yang intensif.',
+                'halo': 'Halo! Saya adalah model AI prototype nxt-1 astro. Saya siap membantu Anda dengan berbagai pertanyaan tentang machine learning, AI, dan topik lainnya. Ada yang bisa saya bantu hari ini?',
+                'apa kabar': 'Saya baik-baik saja, terima kasih sudah bertanya! Sebagai AI, saya tidak memiliki perasaan seperti manusia, tapi saya selalu siap membantu Anda. Ada yang ingin Anda diskusikan atau tanyakan?',
+            };
+
+            // Cari response yang cocok
+            const lowerPrompt = prompt.toLowerCase();
+            for (const [key, value] of Object.entries(responses)) {
+                if (lowerPrompt.includes(key)) {
+                    return value;
+                }
+            }
+
+            // Default response
+            return `Ini adalah response simulasi untuk prompt: "${prompt}".\n\nDalam implementasi nyata, model nxt-1 astro akan menghasilkan text berdasarkan training data dan arsitektur transformer yang digunakan. Model ini menggunakan:\n\n- Multi-head self-attention\n- Positional encoding\n- Feed-forward networks\n- Layer normalization\n\nUntuk testing dengan model sebenarnya, Anda perlu:\n1. Install Python dan pip\n2. Install dependencies: pip install torch flask requests\n3. Jalankan server: python server.py\n4. Pilih "API Mode" di interface ini\n\nModel prototype ini memiliki ~10M parameters dan dilatih dengan dataset sederhana.`;
+        }
+
+        function clearOutput() {
+            document.getElementById('output').textContent = 'Output akan muncul di sini...';
+            document.getElementById('tokensGenerated').textContent = '0';
+            document.getElementById('latency').textContent = '0';
+            document.getElementById('tokensPerSec').textContent = '0';
+            updateStatus('ℹ️ Output cleared', 'info');
+        }
+
+        // Enter key to generate
+        document.getElementById('prompt').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                generateText();
+            }
+        });
+
+        // Mode change handler
+        document.querySelectorAll('input[name="mode"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const mode = this.value;
+                if (mode === 'api') {
+                    updateStatus('🔌 API Mode aktif - Pastikan server.py running di port 8000', 'info');
+                } else {
+                    updateStatus('🎭 Mock Mode aktif - Model simulasi siap untuk testing', 'info');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
