@@ -650,6 +650,9 @@ Jika ada masalah:
 - [ ] All monitoring services running
 - [ ] Logs being collected
 - [ ] Metrics being scraped
+1. Check logs: `docker-compose -f docker-compose.full.yml logs`
+2. Check [DEPLOYMENT.md](./DEPLOYMENT.md) untuk panduan lengkap
+3. Buka issue di GitHub: https://github.com/1astro/nxt-1-astro/issues
 
 ---
 

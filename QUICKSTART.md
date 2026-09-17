@@ -21,10 +21,10 @@ cd nxt-1-astro
 docker login
 
 # Build image
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 
 # Push ke Docker Hub
-docker push nexoraprod/nxt-1-astro:latest
+docker push 1astro/nxt-1-astro:latest
 ```
 
 ### Step 3: Setup Server
@@ -34,7 +34,7 @@ docker push nexoraprod/nxt-1-astro:latest
 ssh root@YOUR_SERVER_IP
 
 # Download dan jalankan setup script
-curl -O https://raw.githubusercontent.com/nexoraprod/nxt-1-astro/main/scripts/setup-server.sh
+curl -O https://raw.githubusercontent.com/1astro/nxt-1-astro/main/scripts/setup-server.sh
 chmod +x setup-server.sh
 sudo ./setup-server.sh
 ```
@@ -46,8 +46,8 @@ sudo ./setup-server.sh
 cd /opt/nxt-1-astro
 
 # Pull dan run container
-docker pull nexoraprod/nxt-1-astro:latest
-docker run -d -p 80:80 --name nxt-1-astro nexoraprod/nxt-1-astro:latest
+docker pull 1astro/nxt-1-astro:latest
+docker run -d -p 80:80 --name nxt-1-astro 1astro/nxt-1-astro:latest
 ```
 
 ### Step 5: Verify
@@ -158,7 +158,7 @@ chmod 600 ~/.ssh/id_ed25519
 docker login
 
 # Check image name
-docker pull nexoraprod/nxt-1-astro:latest
+docker pull 1astro/nxt-1-astro:latest
 ```
 
 ### Problem: Port Already in Use
@@ -212,21 +212,21 @@ htop
 ```bash
 # Di server
 cd /opt/nxt-1-astro
-docker pull nexoraprod/nxt-1-astro:latest
+docker pull 1astro/nxt-1-astro:latest
 docker stop nxt-1-astro
 docker rm nxt-1-astro
-docker run -d -p 80:80 --name nxt-1-astro nexoraprod/nxt-1-astro:latest
+docker run -d -p 80:80 --name nxt-1-astro 1astro/nxt-1-astro:latest
 ```
 
 ### Rollback ke Version Sebelumnya
 ```bash
 # Tag version sebelumnya
-docker tag nexoraprod/nxt-1-astro:v1.0.0 nexoraprod/nxt-1-astro:latest
+docker tag 1astro/nxt-1-astro:v1.0.0 1astro/nxt-1-astro:latest
 
 # Redeploy
 docker stop nxt-1-astro
 docker rm nxt-1-astro
-docker run -d -p 80:80 --name nxt-1-astro nexoraprod/nxt-1-astro:latest
+docker run -d -p 80:80 --name nxt-1-astro 1astro/nxt-1-astro:latest
 ```
 
 ---

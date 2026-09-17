@@ -1,7 +1,8 @@
-version: '3.8'
-
 services:
   app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: 1astro/nxt-1-astro:latest
     container_name: nxt-1-astro-app
     restart: unless-stopped
@@ -54,6 +55,7 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3000"
+      - "3001:3000"  # Changed from 3000 to 3001 to avoid conflicts
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
@@ -96,7 +98,8 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/config.yml
     depends_on:
-      - loki
+      loki:
+        condition: service_healthy
     networks:
       - nxt1-network
 

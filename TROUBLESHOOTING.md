@@ -107,7 +107,7 @@ git push origin main
 **Gejala:**
 ```
 ! [rejected]        main -> main (fetch first)
-error: failed to push some refs to 'github.com:nexoraprod/nxt-1-astro.git'
+error: failed to push some refs to 'github.com:1astro/nxt-1-astro.git'
 hint: Updates were rejected because the remote contains work that you do
 hint: not have locally.
 ```
@@ -199,7 +199,7 @@ fatal: Could not read from remote repository.
 git remote -v
 
 # Jika salah, set ulang
-git remote set-url origin https://github.com/nexoraprod/nxt-1-astro.git
+git remote set-url origin https://github.com/1astro/nxt-1-astro.git
 ```
 
 #### Buat Repository di GitHub
@@ -210,7 +210,7 @@ git remote set-url origin https://github.com/nexoraprod/nxt-1-astro.git
 5. Click "Create repository"
 6. Copy URL dan set remote:
 ```bash
-git remote add origin https://github.com/nexoraprod/nxt-1-astro.git
+git remote add origin https://github.com/1astro/nxt-1-astro.git
 ```
 
 ---
@@ -219,8 +219,8 @@ git remote add origin https://github.com/nexoraprod/nxt-1-astro.git
 
 **Gejala:**
 ```
-remote: Permission to nexoraprod/nxt-1-astro.git denied to username.
-fatal: unable to access 'https://github.com/nexoraprod/nxt-1-astro.git'
+remote: Permission to 1astro/nxt-1-astro.git denied to username.
+fatal: unable to access 'https://github.com/1astro/nxt-1-astro.git'
 ```
 
 **Solusi:**
@@ -345,7 +345,7 @@ Jika masih ada masalah:
 1. **Check GitHub Status**: https://www.githubstatus.com/
 2. **GitHub Docs**: https://docs.github.com/en/get-started
 3. **Stack Overflow**: Search error message
-4. **Create Issue**: https://github.com/nexoraprod/nxt-1-astro/issues
+4. **Create Issue**: https://github.com/1astro/nxt-1-astro/issues
 
 ---
 

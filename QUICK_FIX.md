@@ -76,10 +76,10 @@ docker login
 #### Step 2: Build dengan Nama yang Benar
 ```bash
 # Build dengan nama yang benar
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 
 # Push ke Docker Hub
-docker push nexoraprod/nxt-1-astro:latest
+docker push 1astro/nxt-1-astro:latest
 ```
 
 #### Step 3: Update docker-compose.yml
@@ -89,21 +89,21 @@ Pastikan image name sudah benar di semua docker-compose files:
 ```yaml
 services:
   app-prod:
-    image: nexoraprod/nxt-1-astro:latest
+    image: 1astro/nxt-1-astro:latest
 ```
 
 **docker-compose.prod.yml:**
 ```yaml
 services:
   app:
-    image: ${DOCKER_IMAGE:-nexoraprod/nxt-1-astro:latest}
+    image: ${DOCKER_IMAGE:-1astro/nxt-1-astro:latest}
 ```
 
 **docker-compose.full.yml:**
 ```yaml
 services:
   app:
-    image: nexoraprod/nxt-1-astro:latest
+    image: 1astro/nxt-1-astro:latest
 ```
 
 #### Option 4: Gunakan Script Otomatis
@@ -118,7 +118,7 @@ chmod +x scripts/build-and-push.sh
 
 ### Error Message
 ```
-docker: Error response from daemon: pull access denied for nexoraprod/nxt-1-astro
+docker: Error response from daemon: pull access denied for 1astro/nxt-1-astro
 ```
 
 ### Penyebab
@@ -186,7 +186,7 @@ Port 80 sudah digunakan oleh service lain.
 #### Option 1: Gunakan Port Lain
 ```bash
 # Run dengan port berbeda
-docker run -d -p 8080:80 nexoraprod/nxt-1-astro:latest
+docker run -d -p 8080:80 1astro/nxt-1-astro:latest
 
 # Access di http://localhost:8080
 ```
@@ -254,7 +254,7 @@ docker run -d \
   -p 80:80 \
   --memory="512m" \
   --memory-swap="1g" \
-  nexoraprod/nxt-1-astro:latest
+  1astro/nxt-1-astro:latest
 ```
 
 ---
@@ -267,7 +267,7 @@ docker run -d \
 docker-compose down
 
 # Remove semua images
-docker rmi $(docker images -q nexoraprod/nxt-1-astro)
+docker rmi $(docker images -q 1astro/nxt-1-astro)
 
 # Clean build cache
 docker builder prune -a
@@ -276,10 +276,10 @@ docker builder prune -a
 npm install
 
 # Build ulang
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 
 # Test
-docker run -d -p 8080:80 nexoraprod/nxt-1-astro:latest
+docker run -d -p 8080:80 1astro/nxt-1-astro:latest
 ```
 
 ### Force Push ke Docker Hub
@@ -288,19 +288,19 @@ docker run -d -p 8080:80 nexoraprod/nxt-1-astro:latest
 docker login
 
 # Build
-docker build -t nexoraprod/nxt-1-astro:latest .
+docker build -t 1astro/nxt-1-astro:latest .
 
 # Force push
-docker push --force nexoraprod/nxt-1-astro:latest
+docker push --force 1astro/nxt-1-astro:latest
 ```
 
 ### Debug Build
 ```bash
 # Build tanpa cache
-docker build --no-cache -t nexoraprod/nxt-1-astro:latest .
+docker build --no-cache -t 1astro/nxt-1-astro:latest .
 
 # Build dengan verbose
-docker build --progress=plain -t nexoraprod/nxt-1-astro:latest .
+docker build --progress=plain -t 1astro/nxt-1-astro:latest .
 ```
 
 ---
@@ -323,7 +323,7 @@ docker build --progress=plain -t nexoraprod/nxt-1-astro:latest .
 - [ ] Check disk space: `df -h`
 
 ### Setelah Build
-- [ ] Test locally: `docker run -p 8080:80 nexoraprod/nxt-1-astro:latest`
+- [ ] Test locally: `docker run -p 8080:80 1astro/nxt-1-astro:latest`
 - [ ] Check website: http://localhost:8080
 - [ ] Verify di Docker Hub
 - [ ] Pull test dari mesin lain
@@ -367,7 +367,7 @@ Jika masih ada masalah:
 1. **Check DOCKER_HUB_GUIDE.md** - Panduan lengkap Docker Hub
 2. **Check TROUBLESHOOTING.md** - Troubleshooting umum
 3. **Use script**: `./scripts/build-and-push.sh`
-4. **Create issue**: https://github.com/nexoraprod/nxt-1-astro/issues
+4. **Create issue**: https://github.com/1astro/nxt-1-astro/issues
 
 ---
 

@@ -13,7 +13,7 @@ gh repo fork 1astro/nxt-1-astro
 
 ### 2. Clone Repository
 ```bash
-git clone https://github.com/nexoraprod/nxt-1-astro.git
+git clone https://github.com/1astro/nxt-1-astro.git
 cd nxt-1-astro
 ```
 
