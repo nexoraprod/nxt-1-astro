@@ -11,8 +11,36 @@ env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/nxt-1-astro
 
 jobs:
+  check-secrets:
+    name: Check Required Secrets
+    runs-on: ubuntu-latest
+    outputs:
+      docker-configured: ${{ steps.check.outputs.docker-configured }}
+      server-configured: ${{ steps.check.outputs.server-configured }}
+    steps:
+      - name: Check if secrets are configured
+        id: check
+        run: |
+          if [[ -n "${{ secrets.DOCKERHUB_USERNAME }}" && -n "${{ secrets.DOCKERHUB_TOKEN }}" ]]; then
+            echo "docker-configured=true" >> $GITHUB_OUTPUT
+            echo "✅ Docker Hub credentials configured"
+          else
+            echo "docker-configured=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Docker Hub credentials not configured - skipping Docker build"
+          fi
+          
+          if [[ -n "${{ secrets.SERVER_HOST }}" && -n "${{ secrets.SERVER_USERNAME }}" ]]; then
+            echo "server-configured=true" >> $GITHUB_OUTPUT
+            echo "✅ Server credentials configured"
+          else
+            echo "server-configured=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Server credentials not configured - skipping deployment"
+          fi
+
   build-and-push:
     name: Build and Push Docker Image
+    needs: check-secrets
+    if: needs.check-secrets.outputs.docker-configured == 'true'
     runs-on: ubuntu-latest
     
     steps:
@@ -50,7 +78,8 @@ jobs:
 
   deploy:
     name: Deploy to Server
-    needs: build-and-push
+    needs: [check-secrets, build-and-push]
+    if: needs.check-secrets.outputs.server-configured == 'true' && needs.build-and-push.result == 'success'
     runs-on: ubuntu-latest
     
     steps:

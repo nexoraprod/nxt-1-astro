@@ -527,13 +527,23 @@ docker-compose -f docker-compose.full.yml up -d
 
 ### Auto Deploy dengan GitHub Actions
 
-Setup GitHub secrets:
-- `DOCKERHUB_USERNAME` - Username Docker Hub
-- `DOCKERHUB_TOKEN` - Access Token Docker Hub
-- `SERVER_HOST` - IP server
+Setup GitHub secrets di repository settings:
+
+**Untuk Docker Build & Push:**
+- `DOCKERHUB_USERNAME` - Username Docker Hub Anda
+- `DOCKERHUB_TOKEN` - Access Token dari Docker Hub (bukan password)
+
+**Untuk Auto Deploy ke Server:**
+- `SERVER_HOST` - IP address atau domain server
 - `SERVER_USERNAME` - Username SSH
-- `SERVER_SSH_KEY` - Private SSH key
-- `SERVER_PATH` - `/opt/nxt-1-astro`
+- `SERVER_SSH_KEY` - Private SSH key (full content)
+- `SERVER_PORT` - Port SSH (default: 22)
+- `SERVER_PATH` - Path deployment (default: `/opt/nxt-1-astro`)
+
+**Catatan:**
+- Jika secrets tidak dikonfigurasi, workflow akan skip job yang memerlukan credentials
+- Workflow akan tetap build dan test code tanpa error
+- Lihat **[GITHUB_ACTIONS_CONFIG.md](./GITHUB_ACTIONS_CONFIG.md)** untuk panduan lengkap
 
 Setiap push ke `main` branch akan auto deploy! 🚀
 
@@ -575,6 +585,33 @@ git push --force origin main
 ```
 
 Lihat [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) untuk panduan lengkap.
+
+### 🔧 Loki Not Running?
+
+Jika Loki tidak berjalan di monitoring stack:
+
+1. **Gunakan Script Otomatis**:
+```bash
+chmod +x scripts/fix-loki.sh
+./scripts/fix-loki.sh
+```
+
+2. **Manual Fix**:
+```bash
+# Check status
+docker ps -a | grep loki
+
+# View logs
+docker logs nxt-1-astro-loki
+
+# Restart
+docker-compose -f docker-compose.full.yml restart loki
+
+# Recreate
+docker-compose -f docker-compose.full.yml up -d --force-recreate loki
+```
+
+3. **Check Documentation**: [LOKI_TROUBLESHOOTING.md](./LOKI_TROUBLESHOOTING.md)
 
 ---
 
